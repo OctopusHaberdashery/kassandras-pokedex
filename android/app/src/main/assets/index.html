@@ -41,6 +41,8 @@
   .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .pic .num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim);
     font-size: 22px; font-weight: 700; }
+  .qty { position: absolute; left: 6px; bottom: 6px; background: var(--green); color: #0a1e0f; font-weight: 800;
+    border-radius: 8px; padding: 2px 8px; font-size: 14px; }
   .card:not(.some) .pic img { filter: grayscale(1) brightness(.45); }
   .tick { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; background: var(--gold);
     color: #1e1a0a; display: flex; align-items: center; justify-content: center; font-weight: 800; }
@@ -76,6 +78,16 @@
   .vrow .vname { font-weight: 700; font-size: 18px; } .vrow .vprice { color: var(--gold); font-size: 14px; }
   .vrow button { margin-left: auto; min-width: 140px; min-height: 52px; background: #1e2030; border: 2px solid var(--green); }
   .vrow button.got { background: var(--green); color: #0a1e0f; }
+  .vrow { flex-wrap: wrap; }
+  .vrow .grow { flex: 1; min-width: 120px; }
+  .vrow .have { margin-left: 0; min-width: 120px; }
+  .stepper { display: flex; align-items: center; gap: 6px; }
+  .stepper button { min-width: 56px; min-height: 52px; font-size: 26px; margin: 0; border: 0; background: #1e2030; padding: 0; }
+  .stepper .n { min-width: 64px; text-align: center; font-size: 22px; font-weight: 800; }
+  .stepper .n small { display: block; font-size: 11px; color: var(--dim); font-weight: 600; }
+  .spare { width: 100%; font-size: 14px; color: var(--dim); }
+  .spare b { color: var(--gold); }
+  .chips.t button.on { background: #e07850; color: #1e0f0a; }
   @media (orientation: portrait) {
     #detail .box { flex-direction: column; overflow-y: auto; }
     #detail .big { height: auto; width: 70%; align-self: center; }
@@ -113,7 +125,7 @@
   <div id="tabs"></div>
   <div id="bar">
     <div class="seg" id="status">
-      <button data-f="ALL">ALL</button><button data-f="NEED">NEED</button><button data-f="HAVE">HAVE</button>
+      <button data-f="ALL">ALL</button><button data-f="NEED">NEED</button><button data-f="HAVE">HAVE</button><button data-f="SPARES">SPARES</button>
     </div>
     <button id="sort">BY #</button>
     <input id="search" type="search" placeholder="Search a name or number…" autocomplete="off" autocapitalize="off">
@@ -140,6 +152,7 @@
 <div class="modal" id="filters"><div class="box">
   <div class="boxhead"><h2>Filters</h2><span id="fcount"></span><button class="x" data-close="filters">✕</button></div>
   <div class="scroll" style="padding:0 14px">
+    <div class="label">CARD TYPE · pick any number (none = all)</div><div class="chips t" id="ftype"></div>
     <div class="label">RARITY · pick any number (none = all)</div><div class="chips" id="frar"></div>
     <div class="label">VERSION</div><div class="chips v" id="fver"></div>
     <div class="label">WORTH AT LEAST</div><div class="chips p" id="fprice"></div>
@@ -194,6 +207,18 @@ const ERAS = [["Mega Evolution", "2025-09-25"], ["Scarlet & Violet", "2023-03-31
   ["HeartGold SoulSilver", "2010-02-01"], ["Diamond & Pearl", "2007-05-01"], ["EX", "2003-06-18"],
   ["Classic (Wizards)", "1999-01-01"]];
 const OTHER_ERA = "Promos & Specials";
+const TYPES = ["Pokémon", "Supporter", "Item", "Tool", "Energy", "Stadium", "Trainer"];   // "Trainer" = very old sets that don't split them
+function cardType(ext) {
+  const t = String(ext["Card Type"] || "").toLowerCase(), st = String(ext.Stage || "").toLowerCase(), both = t + " " + st;
+  if (!t && !st) return "";
+  if (both.includes("energy")) return "Energy";
+  if (both.includes("supporter")) return "Supporter";
+  if (both.includes("stadium")) return "Stadium";
+  if (both.includes("tool")) return "Tool";
+  if (both.includes("item")) return "Item";
+  if (t === "trainer") return "Trainer";
+  return "Pokémon";
+}
 const RARITY_ORDER = ["Common", "Uncommon", "Rare", "Holo Rare", "Double Rare", "Pikachu Rare", "Illustration Rare",
   "Ultra Rare", "RGB Rare", "Futuristic Rare", "Special Illustration Rare", "Mega Hyper Rare", "Secret Rare",
   "Classic Collection"];
@@ -241,7 +266,7 @@ function buildCards(products, prices, gid) {
     versions.sort((a, b) => (VERSION_ORDER.indexOf(a[0]) + 1 || 99) - (VERSION_ORDER.indexOf(b[0]) + 1 || 99));
     if (!versions.length) versions = [["Normal", null]];
     cards.push({pid: p.productId, name: (p.name || "").replace(/\s+-\s+\S+\/\S+$/, "").trim(), number,
-      num: m ? parseInt(m[1]) : 9999, order: k, rarity: String(ext.Rarity || ""), versions, gid});
+      num: m ? parseInt(m[1]) : 9999, order: k, rarity: String(ext.Rarity || ""), type: cardType(ext), versions, gid});
   });
   const nums = cards.map(c => c.num);
   if (new Set(nums).size === nums.length) cards.sort((a, b) => a.num - b.num);
@@ -249,7 +274,8 @@ function buildCards(products, prices, gid) {
 }
 
 const slimProducts = ps => ps.map(p => ({productId: p.productId, name: p.name || "",
-  extendedData: (p.extendedData || []).filter(e => e.name === "Number" || e.name === "Rarity")}));
+  extendedData: (p.extendedData || []).filter(e => KEEP.includes(e.name))}));
+const KEEP = ["Number", "Rarity", "Card Type", "Stage"];
 const slimPrices = ps => ps.map(p => ({productId: p.productId, subTypeName: p.subTypeName, marketPrice: p.marketPrice}));
 
 const lib = {
@@ -293,6 +319,7 @@ const lib = {
     for (const c of cards) c.set = this.group(gid).short;
     this.cards[gid] = cards;
     this.updated[gid] = store.modified(gid + "_prices.json");
+    if (cards.length && !cards.some(c => c.type)) this.updated[gid] = 0;   // saved before card types existed
     return true;
   },
 
@@ -358,13 +385,30 @@ const lib = {
 // ---------------------------------------------------------------------------
 // Her collection and settings
 // ---------------------------------------------------------------------------
+// collection.json: {have: ["pid|version", ...], qty: {"pid|version": copies}}  (qty only listed when more than 1)
+const saved0 = loadJSON("collection.json", {});
 const coll = {
-  have: new Set((loadJSON("collection.json", {}).have) || []),
+  have: new Set(saved0.have || []),
+  qty: Object.assign({}, saved0.qty || {}),
   changes: 0,
   key: (c, v) => c.pid + "|" + v,
   has(c, v) { return this.have.has(this.key(c, v)); },
-  toggle(c, v) { const k = this.key(c, v); this.have.has(k) ? this.have.delete(k) : this.have.add(k); this.changes++; this.save(); },
-  save() { store.save("collection.json", JSON.stringify({have: [...this.have].sort(), saved: new Date().toISOString()})); },
+  count(c, v) { const k = this.key(c, v); return this.have.has(k) ? (this.qty[k] || 1) : 0; },
+  setCount(c, v, n) {
+    const k = this.key(c, v);
+    n = Math.max(0, Math.min(999, n | 0));
+    if (n === 0) { this.have.delete(k); delete this.qty[k]; }
+    else { this.have.add(k); if (n > 1) this.qty[k] = n; else delete this.qty[k]; }
+    this.changes++; this.save();
+  },
+  toggle(c, v) { this.setCount(c, v, this.has(c, v) ? 0 : 1); },
+  data() {
+    const qty = {};
+    for (const k of Object.keys(this.qty).sort()) if (this.have.has(k) && this.qty[k] > 1) qty[k] = this.qty[k];
+    return {have: [...this.have].sort(), qty, saved: new Date().toISOString()};
+  },
+  copies() { let n = 0; for (const k of this.have) n += this.qty[k] || 1; return n; },
+  save() { store.save("collection.json", JSON.stringify(this.data())); },
 };
 const prefs = Object.assign({tabs: FAVOURITES.slice(), current: FAVOURITES[FAVOURITES.length - 1]}, loadJSON("settings.json", {}));
 const savePrefs = () => store.save("settings.json", JSON.stringify({tabs: prefs.tabs, current: prefs.current}));
@@ -372,13 +416,15 @@ const savePrefs = () => store.save("settings.json", JSON.stringify({tabs: prefs.
 // ---------------------------------------------------------------------------
 // What's on screen
 // ---------------------------------------------------------------------------
-const view = {filter: "ALL", sort: "#", query: "", scope: "SET", rarities: new Set(), versions: new Set(), minPrice: 0,
+const view = {filter: "ALL", sort: "#", query: "", scope: "SET", rarities: new Set(), types: new Set(), versions: new Set(), minPrice: 0,
   limit: PAGE, era: null, setFind: ""};
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[ch]));
 const money = v => v == null ? "no price" : (v >= 1000 ? "$" + Math.round(v).toLocaleString() : "$" + v.toFixed(2));
 const searchingMany = () => view.query.trim() && view.scope !== "SET";
 const bestPrice = c => Math.max(0, ...c.versions.map(v => v[1] || 0));
+const spares = (c, v) => Math.max(0, coll.count(c, v) - 1);
+const hasSpares = c => c.versions.some(([v]) => spares(c, v) > 0);
 
 function pool() {
   if (searchingMany()) {
@@ -398,6 +444,7 @@ function matches(c) {
       else if (!name.includes(w)) return false;
     }
   }
+  if (view.types.size && !view.types.has(c.type)) return false;
   if (view.rarities.size && !view.rarities.has(c.rarity)) return false;
   const vs = c.versions.filter(([v]) => !view.versions.size || view.versions.has(v));
   if (!vs.length) return false;
@@ -406,26 +453,32 @@ function matches(c) {
     const got = vs.map(([v]) => coll.has(c, v));
     if (view.filter === "NEED" && got.every(Boolean)) return false;
     if (view.filter === "HAVE" && !got.some(Boolean)) return false;
+    if (view.filter === "SPARES" && !vs.some(([v]) => spares(c, v) > 0)) return false;
   }
   return true;
 }
 
 function shown() {
   const cards = pool().filter(matches);
-  if (view.sort === "$") cards.sort((a, b) => bestPrice(b) - bestPrice(a));
+  if (view.sort === "$" && view.filter === "SPARES") cards.sort((a, b) => spareValue(b) - spareValue(a));
+  else if (view.sort === "$") cards.sort((a, b) => bestPrice(b) - bestPrice(a));
   else if (view.sort === "A-Z") cards.sort((a, b) => a.name.localeCompare(b.name) || a.num - b.num);
   return cards;
 }
 
+const spareValue = c => c.versions.reduce((t, [v, p]) => t + spares(c, v) * (p || 0), 0);
 function stats(gid) {
   const cards = lib.cards[gid] || [];
-  let gc = 0, tv = 0, gv = 0, value = 0;
+  let gc = 0, tv = 0, gv = 0, value = 0, extra = 0, extraValue = 0;
   for (const c of cards) {
     let any = false;
-    for (const [v, p] of c.versions) { tv++; if (coll.has(c, v)) { gv++; any = true; value += p || 0; } }
+    for (const [v, p] of c.versions) {
+      tv++;
+      if (coll.has(c, v)) { gv++; any = true; value += p || 0; const s = spares(c, v); extra += s; extraValue += s * (p || 0); }
+    }
     if (any) gc++;
   }
-  return {gc, tc: cards.length, gv, tv, value};
+  return {gc, tc: cards.length, gv, tv, value, extra, extraValue};
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +509,7 @@ function renderTabs() {
 function renderBar() {
   for (const b of $("status").children) b.classList.toggle("on", b.dataset.f === view.filter);
   $("sort").textContent = "BY " + view.sort;
-  const n = view.rarities.size + view.versions.size + (view.minPrice ? 1 : 0);
+  const n = view.types.size + view.rarities.size + view.versions.size + (view.minPrice ? 1 : 0);
   $("filtersBtn").textContent = n ? `FILTERS (${n})` : "FILTERS";
   $("filtersBtn").classList.toggle("on", n > 0);
   $("scope").value = view.scope;
@@ -465,10 +518,11 @@ function renderBar() {
 function versionButtons(c, compact) {
   const n = c.versions.length;
   return c.versions.map(([v]) => {
-    const got = coll.has(c, v);
+    const got = coll.has(c, v), k = coll.count(c, v);
     let label = VERSION_NAME[v] || v.slice(0, 7).toUpperCase();
-    if (n >= 3 || (compact && label.length > 7)) label = VERSION_SHORT[label] || label.slice(0, 4);
-    return `<button class="${got ? "got" : ""}" style="--c:${VERSION_COLOUR[v] || "#7882a0"}" data-pid="${c.pid}" data-v="${esc(v)}">${got && n < 3 ? "✓ " : ""}${esc(label)}</button>`;
+    if (n >= 3 || (compact && label.length > 7) || (k > 1 && n >= 2 && label.length > 4)) label = VERSION_SHORT[label] || label.slice(0, 4);
+    const mark = k > 1 ? " ×" + k : "";
+    return `<button class="${got ? "got" : ""}" style="--c:${VERSION_COLOUR[v] || "#7882a0"}" data-pid="${c.pid}" data-v="${esc(v)}">${got && n < 3 && !mark ? "✓ " : ""}${esc(label)}${mark}</button>`;
   }).join("");
 }
 
@@ -482,11 +536,7 @@ function renderGrid() {
     sum = `<b>${cards.length} found in ${view.scope === "TABS" ? "your tab sets" : "every set"}</b>`;
     if (view.scope === "ALL" && lib.allProgress) sum += `<span class="blue">still downloading sets ${lib.allProgress[0]} / ${lib.allProgress[1]}, more results will appear</span>`;
   } else {
-    const s = stats(prefs.current);
-    sum = `<b>${s.gc} / ${s.tc} cards · ${s.gv} / ${s.tv} versions</b><span class="gold">collected value ${money(s.value)}</span>`;
-    if (cards.length !== s.tc) sum += `<span class="blue">showing ${cards.length}</span>`;
-    const u = lib.updated[prefs.current];
-    if (u) sum += `<span class="dim">prices updated ${new Date(u * 1000).toLocaleDateString(undefined, {month: "short", day: "numeric"})}</span>`;
+    sum = setSummary(cards.length);
   }
   $("summary").innerHTML = sum;
   if (!cards.length) {
@@ -502,22 +552,44 @@ function renderGrid() {
     return;
   }
   const many = searchingMany();
-  $("grid").innerHTML = cards.slice(0, view.limit).map((c, i) => {
-    const got = c.versions.map(([v]) => coll.has(c, v));
-    const some = got.some(Boolean), all = got.every(Boolean);
-    const price = bestPrice(c);
-    let tag = "#" + c.number.split("/")[0];
-    if (many) { const g = lib.group(c.gid); tag += " " + (g.abbr || g.short); }
-    return `<div class="card ${some ? "some" : ""} ${all ? "complete" : ""}">
-      <div class="pic" data-i="${i}"><span class="num">#${esc(c.number.split("/")[0])}</span>
-        <img loading="lazy" src="${IMG(c.pid, 200)}" alt="" onerror="this.style.display='none'">
-        ${all ? '<span class="tick">✓</span>' : ""}</div>
-      <div class="name">${esc(c.name)}</div>
-      <div class="meta"><span class="tag">${esc(tag)}</span><span class="price">${price ? money(price) : "no price"}</span></div>
-      <div class="vers">${versionButtons(c, true)}</div></div>`;
-  }).join("");
+  $("grid").innerHTML = cards.slice(0, view.limit).map((c, i) => cardHTML(c, i, many)).join("");
   $("more").style.display = cards.length > view.limit ? "block" : "none";
   $("more").textContent = `Show more (${cards.length - view.limit} left)`;
+}
+
+function cardHTML(c, i, many) {
+  const got = c.versions.map(([v]) => coll.has(c, v));
+  const some = got.some(Boolean), all = got.every(Boolean);
+  const copies = c.versions.reduce((t, [v]) => t + coll.count(c, v), 0);
+  const price = bestPrice(c);
+  let tag = "#" + c.number.split("/")[0];
+  if (many) { const g = lib.group(c.gid); tag += " " + (g.abbr || g.short); }
+  // the number only shows if the picture can't be downloaded
+  return `<div class="card ${some ? "some" : ""} ${all ? "complete" : ""}" data-card="${c.pid}" data-i="${i}">
+    <div class="pic" data-i="${i}">
+      <img loading="lazy" src="${IMG(c.pid, 200)}" alt="" onerror="this.outerHTML='<span class=num>#${esc(c.number.split("/")[0]).replace(/'/g, "")}</span>'">
+      ${all ? '<span class="tick">✓</span>' : ""}${copies > 1 ? `<span class="qty">×${copies}</span>` : ""}</div>
+    <div class="name">${esc(c.name)}</div>
+    <div class="meta"><span class="tag">${esc(tag)}</span><span class="price">${price ? money(price) : "no price"}</span></div>
+    <div class="vers">${versionButtons(c, true)}</div></div>`;
+}
+
+// after a tap: redraw just that card (no flicker) unless it should now disappear
+function refreshCard(c) {
+  const el = document.querySelector(`.card[data-card="${c.pid}"]`);
+  if (!el || !matches(c)) return renderGrid();
+  el.outerHTML = cardHTML(c, +el.dataset.i, searchingMany());
+  renderSummaryOnly();
+}
+function renderSummaryOnly() { if (!searchingMany()) $("summary").innerHTML = setSummary(lastCards.length); }
+function setSummary(showing) {
+  const s = stats(prefs.current);
+  let sum = `<b>${s.gc} / ${s.tc} cards · ${s.gv} / ${s.tv} versions</b><span class="gold">collected value ${money(s.value)}</span>`;
+  if (s.extra) sum += `<span class="gold">${s.extra} spare${s.extra === 1 ? "" : "s"} worth ${money(s.extraValue)}</span>`;
+  if (showing !== s.tc) sum += `<span class="blue">showing ${showing}</span>`;
+  const u = lib.updated[prefs.current];
+  if (u) sum += `<span class="dim">prices updated ${new Date(u * 1000).toLocaleDateString(undefined, {month: "short", day: "numeric"})}</span>`;
+  return sum;
 }
 
 // ---- one card, big ----
@@ -534,13 +606,23 @@ function renderDetail() {
         <button class="x" data-close="detail">✕</button></div>
       <div style="color:var(--dim)">${esc(c.number)} · ${esc(c.rarity)}</div>
       <div style="color:var(--dim);font-size:14px">${esc(g.name)}</div>
-      <div class="label">VERSIONS · tap to mark collected</div>
+      <div class="label">VERSIONS · tap to mark collected, then set how many copies</div>
       ${c.versions.map(([v, p]) => {
-        const got = coll.has(c, v);
-        return `<div class="vrow" style="--c:${VERSION_COLOUR[v] || "#7882a0"}"><div><div class="vname">${esc(v === "Reverse Holofoil" ? "Reverse Holo" : v)}</div>
-          <div class="vprice">${money(p)}${p ? " market price" : ""}</div></div>
-          <button class="${got ? "got" : ""}" data-pid="${c.pid}" data-v="${esc(v)}">${got ? "✓ HAVE IT" : "NEED IT"}</button></div>`;
+        const n = coll.count(c, v), s = Math.max(0, n - 1);
+        const head = `<div class="grow"><div class="vname">${esc(v === "Reverse Holofoil" ? "Reverse Holo" : v)}</div>
+          <div class="vprice">${money(p)}${p ? " market price each" : ""}</div></div>`;
+        if (!n) return `<div class="vrow" style="--c:${VERSION_COLOUR[v] || "#7882a0"}">${head}
+          <button data-pid="${c.pid}" data-v="${esc(v)}">NEED IT</button></div>`;
+        const spareLine = s ? `Keeping 1 for her collection · <b>${s} spare${s === 1 ? "" : "s"} worth ${p ? money(s * p) : "?"}</b>${p ? ` (${s} × ${money(p)})` : " (no price listed)"}`
+                            : "Just her collection copy · no spares";
+        return `<div class="vrow" style="--c:${VERSION_COLOUR[v] || "#7882a0"}">${head}
+          <div class="stepper"><button data-step="-1" data-spid="${c.pid}" data-sv="${esc(v)}">−</button>
+            <div class="n">${n}<small>${n === 1 ? "COPY" : "COPIES"}</small></div>
+            <button data-step="1" data-spid="${c.pid}" data-sv="${esc(v)}">+</button></div>
+          <div class="spare">${spareLine}</div></div>`;
       }).join("")}
+      ${c.versions.some(([v]) => coll.count(c, v) > 1) ? `<div class="label" style="color:var(--gold)">ALL SPARES OF THIS CARD: ${money(spareValue(c))}</div>` : ""}
+      <div class="label">Going down to 0 copies marks it as needed again.</div>
     </div>`;
 }
 
@@ -601,6 +683,9 @@ function toggleTab(gid) {
 // ---- filters ----
 function renderFilters() {
   const p = pool();
+  const present = new Set(p.map(c => c.type));
+  $("ftype").innerHTML = TYPES.filter(t => t !== "Trainer" || present.has(t))
+    .map(t => `<button data-type="${esc(t)}" class="${view.types.has(t) ? "on" : ""}">${esc(t.toUpperCase())}</button>`).join("");
   const rar = [...new Set(p.map(c => c.rarity).filter(Boolean))]
     .sort((a, b) => ((RARITY_ORDER.indexOf(a) + 1 || 99) - (RARITY_ORDER.indexOf(b) + 1 || 99)) || a.localeCompare(b));
   $("frar").innerHTML = rar.map(r => `<button data-rar="${esc(r)}" class="${view.rarities.has(r) ? "on" : ""}">${esc(r)}</button>`).join("");
@@ -636,23 +721,29 @@ document.addEventListener("click", e => {
   if (t.id === "sort") { view.sort = {"#": "$", "$": "A-Z", "A-Z": "#"}[view.sort]; view.limit = PAGE; return render(); }
   if (t.id === "filtersBtn") { renderFilters(); return $("filters").classList.add("open"); }
   if (t.id === "menuBtn") {
-    $("mInfo").textContent = `${coll.have.size} versions collected · ${Object.keys(lib.cards).length} sets on the tablet`;
+    $("mInfo").textContent = `${coll.have.size} versions collected (${coll.copies()} cards counting copies) · ${Object.keys(lib.cards).length} sets on the tablet`;
     return $("menu").classList.add("open");
   }
   if (t.id === "more") { view.limit += PAGE; return render(); }
   if (d.pid && d.v) {                                   // a version button
     const c = findCard(d.pid);
-    if (c) { coll.toggle(c, d.v); renderGrid(); if (detailCard) renderDetail(); }
+    if (c) { coll.toggle(c, d.v); detailCard ? (renderDetail(), renderGrid()) : refreshCard(c); }
+    return;
+  }
+  if (d.step) {                                         // copies − / +
+    const c = findCard(d.spid);
+    if (c) { coll.setCount(c, d.sv, coll.count(c, d.sv) + +d.step); renderDetail(); renderGrid(); }
     return;
   }
   if (t.classList.contains("pic")) return openDetail(lastCards[+d.i]);
   if (d.era) { view.era = d.era; view.setFind = ""; $("setfind").value = ""; $("setlist").scrollTop = 0; return renderSets(); }
   if (d.star) return toggleTab(+d.star);
   if (d.set) return openSet(+d.set);
+  if (d.type) { view.types.has(d.type) ? view.types.delete(d.type) : view.types.add(d.type); view.limit = PAGE; return render(); }
   if (d.rar) { view.rarities.has(d.rar) ? view.rarities.delete(d.rar) : view.rarities.add(d.rar); view.limit = PAGE; return render(); }
   if (d.ver) { view.versions.has(d.ver) ? view.versions.delete(d.ver) : view.versions.add(d.ver); view.limit = PAGE; return render(); }
   if (d.price !== undefined) { view.minPrice = +d.price; view.limit = PAGE; return render(); }
-  if (t.id === "fclear") { view.rarities.clear(); view.versions.clear(); view.minPrice = 0; return render(); }
+  if (t.id === "fclear") { view.rarities.clear(); view.types.clear(); view.versions.clear(); view.minPrice = 0; return render(); }
   if (t.id === "mUpdate") {
     lib.failed.clear(); lib.status = "";
     lib.loadGroups(true);
@@ -661,7 +752,7 @@ document.addEventListener("click", e => {
     return toast("Updating prices…");
   }
   if (t.id === "mExport") {
-    const text = JSON.stringify({have: [...coll.have].sort(), saved: new Date().toISOString()});
+    const text = JSON.stringify(coll.data());
     if (native) native.share("Kassandra's Pokédex collection", text);
     else navigator.clipboard && navigator.clipboard.writeText(text);
     return closeModal("menu");
@@ -672,8 +763,9 @@ document.addEventListener("click", e => {
       const data = JSON.parse($("importText").value);
       const list = Array.isArray(data) ? data : data.have;
       if (!Array.isArray(list)) throw new Error("no list");
-      if (t.id === "importReplace") coll.have = new Set();
+      if (t.id === "importReplace") { coll.have = new Set(); coll.qty = {}; }
       for (const k of list) if (/^\d+\|/.test(k)) coll.have.add(k);
+      if (data.qty) for (const [k, n] of Object.entries(data.qty)) if (/^\d+\|/.test(k) && n > 1) { coll.have.add(k); coll.qty[k] = Math.max(coll.qty[k] || 1, Math.min(999, n | 0)); }
       coll.changes++; coll.save();
       closeModal("import");
       toast(`Imported. ${coll.have.size} versions collected now.`);
