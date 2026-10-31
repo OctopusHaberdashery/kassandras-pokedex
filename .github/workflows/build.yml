@@ -1,0 +1,42 @@
+name: Build Android app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build the app
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          gradle -p android assembleRelease --no-daemon
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk out/KassandrasPokedex.apk
+
+      - name: Publish it
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Kassandra's Pokédex (version ${{ github.run_number }})
+          body: |
+            Open this page on the tablet and tap KassandrasPokedex.apk to download and install.
+          files: out/KassandrasPokedex.apk
+          make_latest: true
