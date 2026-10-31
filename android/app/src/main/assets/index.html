@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Kassandra's Pokédex</title>
+<style>
+  :root {
+    --bg: #141622; --panel: #222536; --panel2: #2e3248; --text: #f0f2fa; --dim: #969cb4;
+    --gold: #f5c846; --green: #46be6e; --blue: #468cf0; --red: #6e2e3e;
+    --normal: #468cf0; --reverse: #a064e6; --holo: #e6b428; --first: #28aaa0; --firstholo: #e682c8;
+    --unl: #6eaa5a; --unlholo: #c8c85a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: "Roboto", "Segoe UI", system-ui, sans-serif; overscroll-behavior: none; }
+  button { font: inherit; color: inherit; border: 0; border-radius: 10px; background: var(--panel2);
+    padding: 0 14px; min-height: 44px; cursor: pointer; font-weight: 600; }
+  button:active { filter: brightness(1.25); }
+  button.on { background: var(--blue); }
+  header { position: sticky; top: 0; z-index: 5; background: #0c0d16; }
+  #tabs { display: flex; gap: 6px; padding: 8px; overflow-x: auto; scrollbar-width: none; }
+  #tabs button { flex: 1 1 0; min-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #tabs button.cur { background: var(--gold); color: #1e1a0a; }
+  #tabs button.all { background: #3c5aa0; flex: 0 0 auto; }
+  #tabs button.all.cur { background: var(--gold); }
+  #bar { display: flex; gap: 6px; padding: 0 8px 8px; align-items: center; flex-wrap: wrap; background: #1a1c2a; padding-top: 8px; }
+  .seg { display: flex; gap: 4px; }
+  #search { flex: 1 1 200px; min-width: 160px; height: 44px; border-radius: 10px; border: 2px solid var(--panel2);
+    background: #0e0f18; color: var(--text); padding: 0 14px; font-size: 16px; }
+  #search:focus { outline: none; border-color: var(--blue); }
+  select { height: 44px; border-radius: 10px; background: var(--panel2); color: var(--text); border: 0; padding: 0 10px; font: inherit; font-weight: 600; }
+  #summary { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 12px 2px; align-items: baseline; }
+  #summary .gold { color: var(--gold); } #summary .dim { color: var(--dim); font-size: 13px; margin-left: auto; }
+  #summary .blue { color: #78aafa; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px; padding: 10px; }
+  .card { background: var(--panel); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 4px;
+    border: 2px solid transparent; }
+  .card.complete { border-color: var(--gold); background: #34301e; }
+  .pic { position: relative; width: 100%; aspect-ratio: 200 / 279; border-radius: 8px; overflow: hidden; background: #262a3c; }
+  .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pic .num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim);
+    font-size: 22px; font-weight: 700; }
+  .card:not(.some) .pic img { filter: grayscale(1) brightness(.45); }
+  .tick { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; background: var(--gold);
+    color: #1e1a0a; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+  .name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card:not(.some) .name { color: var(--dim); }
+  .meta { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; color: var(--dim); }
+  .meta .price { color: var(--gold); white-space: nowrap; }
+  .meta .tag { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vers { display: flex; gap: 4px; }
+  .vers button { flex: 1; min-height: 40px; padding: 0 4px; font-size: 13px; background: #1e2030; border: 2px solid var(--c);
+    color: var(--c); white-space: nowrap; overflow: hidden; }
+  .vers button.got { background: var(--c); color: #0f0f14; }
+  #more { margin: 4px auto 30px; display: block; }
+  .empty { text-align: center; color: var(--dim); font-size: 20px; padding: 60px 20px; }
+  /* pop-ups */
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 20; display: none; padding: 14px; }
+  .modal.open { display: flex; }
+  .box { background: var(--panel); border-radius: 16px; width: 100%; max-height: 100%; display: flex; flex-direction: column;
+    overflow: hidden; }
+  .boxhead { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+  .boxhead h2 { margin: 0; font-size: 20px; color: var(--gold); flex: 1; }
+  .x { background: var(--red); min-width: 50px; font-size: 18px; }
+  .scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* card detail */
+  #detail .box { flex-direction: row; gap: 16px; padding: 14px; }
+  #detail .big { flex: 0 0 auto; height: calc(100vh - 60px); max-height: 640px; aspect-ratio: 400 / 557; border-radius: 12px;
+    overflow: hidden; background: #262a3c; }
+  #detail .big img { width: 100%; height: 100%; object-fit: contain; }
+  #detail .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  #detail h3 { margin: 0; font-size: 26px; }
+  .vrow { display: flex; align-items: center; gap: 12px; background: var(--panel2); border-radius: 12px; padding: 10px 12px;
+    border-left: 8px solid var(--c); }
+  .vrow .vname { font-weight: 700; font-size: 18px; } .vrow .vprice { color: var(--gold); font-size: 14px; }
+  .vrow button { margin-left: auto; min-width: 140px; min-height: 52px; background: #1e2030; border: 2px solid var(--green); }
+  .vrow button.got { background: var(--green); color: #0a1e0f; }
+  @media (orientation: portrait) {
+    #detail .box { flex-direction: column; overflow-y: auto; }
+    #detail .big { height: auto; width: 70%; align-self: center; }
+  }
+  /* set browser */
+  #sets .body { display: flex; gap: 10px; padding: 0 14px 14px; min-height: 0; flex: 1; }
+  #eras { display: flex; flex-direction: column; gap: 6px; flex: 0 0 190px; overflow-y: auto; }
+  #eras button { text-align: left; }
+  #eras button.cur { background: var(--gold); color: #1e1a0a; }
+  #setlist { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .setrow { display: flex; align-items: center; gap: 10px; background: var(--panel2); border-radius: 12px; padding: 8px 10px 8px 14px; min-height: 60px; }
+  .setrow.cur { background: #3c3822; }
+  .setrow .sn { font-weight: 700; } .setrow .ss { color: var(--dim); font-size: 13px; }
+  .setrow .grow { flex: 1; min-width: 0; }
+  .setrow .prog { font-weight: 700; color: var(--dim); } .setrow .prog.some { color: var(--green); } .setrow .prog.all { color: var(--gold); }
+  .star { min-width: 54px; font-size: 22px; color: var(--gold); background: #1e2030; }
+  .star.on { background: #463e1e; }
+  #setfind { flex: 1; max-width: 340px; height: 44px; border-radius: 10px; border: 2px solid var(--panel2); background: #0e0f18;
+    color: var(--text); padding: 0 12px; font-size: 16px; }
+  /* filters */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button.on { background: var(--gold); color: #1e1a0a; }
+  .chips.v button { border: 2px solid var(--c); color: var(--c); background: #1e2030; }
+  .chips.v button.on { background: var(--c); color: #0f0f14; }
+  .chips.p button.on { background: var(--green); color: #0a1e0f; }
+  .label { color: var(--dim); font-size: 13px; margin: 14px 0 6px; letter-spacing: .5px; }
+  .foot { display: flex; justify-content: space-between; padding: 12px 14px; gap: 10px; }
+  textarea { width: 100%; height: 180px; background: #0e0f18; color: var(--text); border-radius: 10px; border: 2px solid var(--panel2); padding: 10px; font-family: monospace; }
+  #toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: #3c4260; padding: 10px 18px;
+    border-radius: 10px; z-index: 30; display: none; max-width: 90%; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div id="tabs"></div>
+  <div id="bar">
+    <div class="seg" id="status">
+      <button data-f="ALL">ALL</button><button data-f="NEED">NEED</button><button data-f="HAVE">HAVE</button>
+    </div>
+    <button id="sort">BY #</button>
+    <input id="search" type="search" placeholder="Search a name or number…" autocomplete="off" autocapitalize="off">
+    <select id="scope">
+      <option value="SET">This set</option><option value="TABS">My tabs</option><option value="ALL">Every set</option>
+    </select>
+    <button id="filtersBtn">FILTERS</button>
+    <button id="menuBtn">⋮</button>
+  </div>
+</header>
+<div id="summary"></div>
+<div id="grid"></div>
+<button id="more" style="display:none">Show more</button>
+
+<div class="modal" id="detail"><div class="box"></div></div>
+
+<div class="modal" id="sets"><div class="box">
+  <div class="boxhead"><h2 id="setsTitle">Every English set</h2>
+    <input id="setfind" type="search" placeholder="Find a set…" autocomplete="off">
+    <button class="x" data-close="sets">✕</button></div>
+  <div class="body"><div id="eras"></div><div id="setlist" class="scroll"></div></div>
+</div></div>
+
+<div class="modal" id="filters"><div class="box">
+  <div class="boxhead"><h2>Filters</h2><span id="fcount"></span><button class="x" data-close="filters">✕</button></div>
+  <div class="scroll" style="padding:0 14px">
+    <div class="label">RARITY · pick any number (none = all)</div><div class="chips" id="frar"></div>
+    <div class="label">VERSION</div><div class="chips v" id="fver"></div>
+    <div class="label">WORTH AT LEAST</div><div class="chips p" id="fprice"></div>
+  </div>
+  <div class="foot"><button id="fclear">CLEAR ALL</button><button class="on" data-close="filters">SHOW</button></div>
+</div></div>
+
+<div class="modal" id="menu"><div class="box" style="max-width:520px;margin:auto">
+  <div class="boxhead"><h2>Menu</h2><button class="x" data-close="menu">✕</button></div>
+  <div style="display:flex;flex-direction:column;gap:8px;padding:0 14px 14px">
+    <button id="mUpdate">Update prices now</button>
+    <button id="mExport">Export collection (send it somewhere as a backup)</button>
+    <button id="mImport">Import a collection</button>
+    <div class="label" id="mInfo"></div>
+  </div>
+</div></div>
+
+<div class="modal" id="import"><div class="box" style="max-width:720px;margin:auto">
+  <div class="boxhead"><h2>Import a collection</h2><button class="x" data-close="import">✕</button></div>
+  <div style="padding:0 14px">Paste an exported collection (or the Pi's collection.json) here:
+    <textarea id="importText"></textarea></div>
+  <div class="foot"><button id="importAdd" class="on">ADD TO HER COLLECTION</button><button id="importReplace">REPLACE HER COLLECTION</button></div>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+const FAVOURITES = [24722, 24837, 24587, 24688];   // 30th Celebration, Classic Collection, Perfect Order, Pitch Black
+const MAX_TABS = 4;
+const REFRESH_HOURS = 12;
+const ALL_SETS_DAYS = 7;
+const PAGE = 240;                                   // cards drawn at a time (more appear with "Show more")
+const API = "https://tcgcsv.com/tcgplayer/3/";
+const IMG = (pid, w) => `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_${w}w.jpg`;
+
+const VERSION_ORDER = ["Normal", "Reverse Holofoil", "Holofoil", "1st Edition", "1st Edition Normal",
+  "1st Edition Holofoil", "Unlimited", "Unlimited Normal", "Unlimited Holofoil"];
+const VERSION_COLOUR = {"Normal": "var(--normal)", "Reverse Holofoil": "var(--reverse)", "Holofoil": "var(--holo)",
+  "1st Edition": "var(--first)", "1st Edition Normal": "var(--first)", "1st Edition Holofoil": "var(--firstholo)",
+  "Unlimited": "var(--unl)", "Unlimited Normal": "var(--unl)", "Unlimited Holofoil": "var(--unlholo)"};
+const VERSION_NAME = {"Normal": "NORMAL", "Reverse Holofoil": "REVERSE", "Holofoil": "HOLO", "1st Edition": "1ST ED",
+  "1st Edition Normal": "1ST ED", "1st Edition Holofoil": "1ST HOLO", "Unlimited": "UNLTD", "Unlimited Normal": "UNLTD",
+  "Unlimited Holofoil": "UNL HOLO"};
+const VERSION_SHORT = {"NORMAL": "N", "REVERSE": "REV", "HOLO": "HOLO", "1ST ED": "1ST", "1ST HOLO": "1ST-H",
+  "UNLTD": "UNL", "UNL HOLO": "UNL-H"};
+const ERAS = [["Mega Evolution", "2025-09-25"], ["Scarlet & Violet", "2023-03-31"], ["Sword & Shield", "2019-11-15"],
+  ["Sun & Moon", "2016-12-14"], ["XY", "2013-11-08"], ["Black & White", "2011-04-25"],
+  ["HeartGold SoulSilver", "2010-02-01"], ["Diamond & Pearl", "2007-05-01"], ["EX", "2003-06-18"],
+  ["Classic (Wizards)", "1999-01-01"]];
+const OTHER_ERA = "Promos & Specials";
+const RARITY_ORDER = ["Common", "Uncommon", "Rare", "Holo Rare", "Double Rare", "Pikachu Rare", "Illustration Rare",
+  "Ultra Rare", "RGB Rare", "Futuristic Rare", "Special Illustration Rare", "Mega Hyper Rare", "Secret Rare",
+  "Classic Collection"];
+
+// ---------------------------------------------------------------------------
+// The tablet: downloads and files (through the Android app; plain browser for testing)
+// ---------------------------------------------------------------------------
+const native = window.Android;
+const pending = {};
+let nextId = 1;
+window.__done = (id, ok, text) => { const p = pending[id]; delete pending[id]; if (p) (ok ? p.resolve : p.reject)(text); };
+function httpGet(url) {
+  if (native) return new Promise((resolve, reject) => { const id = "r" + nextId++; pending[id] = {resolve, reject}; native.get(id, url); });
+  return fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.text(); });
+}
+const store = {
+  load: n => native ? native.load(n) : (localStorage.getItem("f_" + n) || ""),
+  save: (n, t) => native ? native.save(n, t) : (localStorage.setItem("f_" + n, t), localStorage.setItem("t_" + n, Date.now() / 1000)),
+  modified: n => native ? native.modified(n) : Number(localStorage.getItem("t_" + n) || 0),
+};
+const loadJSON = (n, d) => { try { const t = store.load(n); return t ? JSON.parse(t) : d; } catch (e) { return d; } };
+const now = () => Date.now() / 1000;
+
+// ---------------------------------------------------------------------------
+// Card data
+// ---------------------------------------------------------------------------
+function shortName(name) {
+  if (name.endsWith("Classic Collection") && name !== "Classic Collection")
+    return name.replace("Celebration ", "").replace(": ", " ").replace("ME ", "").replace(" Collection", "");
+  let s = name.replace(/^(ME|MEE|SV|SVE|SWSH)\d*\s*:\s*/, "").replace(/^(SM|XY)\s+-\s+/, "");
+  return s.trim() || name;
+}
+
+function buildCards(products, prices, gid) {
+  const byId = {};
+  for (const p of prices) (byId[p.productId] = byId[p.productId] || []).push([p.subTypeName || "Normal", p.marketPrice]);
+  const cards = [];
+  products.forEach((p, k) => {
+    const ext = {};
+    for (const e of p.extendedData || []) ext[e.name] = e.value;
+    const number = String(ext.Number || "");
+    if (!/\d/.test(number) || number.includes("Code Card")) return;     // sealed products and code cards
+    const m = number.match(/\D*(\d+)/);
+    let versions = byId[p.productId] || [];
+    versions.sort((a, b) => (VERSION_ORDER.indexOf(a[0]) + 1 || 99) - (VERSION_ORDER.indexOf(b[0]) + 1 || 99));
+    if (!versions.length) versions = [["Normal", null]];
+    cards.push({pid: p.productId, name: (p.name || "").replace(/\s+-\s+\S+\/\S+$/, "").trim(), number,
+      num: m ? parseInt(m[1]) : 9999, order: k, rarity: String(ext.Rarity || ""), versions, gid});
+  });
+  const nums = cards.map(c => c.num);
+  if (new Set(nums).size === nums.length) cards.sort((a, b) => a.num - b.num);
+  return cards;
+}
+
+const slimProducts = ps => ps.map(p => ({productId: p.productId, name: p.name || "",
+  extendedData: (p.extendedData || []).filter(e => e.name === "Number" || e.name === "Rarity")}));
+const slimPrices = ps => ps.map(p => ({productId: p.productId, subTypeName: p.subTypeName, marketPrice: p.marketPrice}));
+
+const lib = {
+  groups: [], byGid: {}, cards: {}, updated: {}, loading: new Set(), failed: new Set(), todo: [],
+  allProgress: null, status: "", running: 0,
+
+  setGroups(raw) {
+    const dates = {};
+    for (const g of raw) { const d = (g.publishedOn || "").slice(0, 10); dates[d] = (dates[d] || 0) + 1; }
+    this.groups = raw.map(g => {
+      const d = (g.publishedOn || "").slice(0, 10);
+      let era = OTHER_ERA;
+      if (d && (dates[d] || 0) < 4) for (const [name, start] of ERAS) if (d >= start) { era = name; break; }
+      return {gid: g.groupId, name: g.name, short: shortName(g.name), abbr: g.abbreviation || "", date: d, era};
+    }).sort((a, b) => a.date < b.date ? 1 : -1);
+    this.byGid = {};
+    for (const g of this.groups) this.byGid[g.gid] = g;
+  },
+  group(gid) { return this.byGid[gid] || {gid, name: "Set " + gid, short: "Set " + gid, abbr: "", date: "", era: OTHER_ERA}; },
+
+  async loadGroups(force = false) {
+    const cached = loadJSON("groups.json", null);
+    if (cached) this.setGroups(cached);
+    if (force || !cached || now() - store.modified("groups.json") > 86400) {
+      try {
+        const raw = JSON.parse(await httpGet(API + "groups")).results;
+        store.save("groups.json", JSON.stringify(raw));
+        this.setGroups(raw);
+        for (const gid of Object.keys(this.cards)) for (const c of this.cards[gid]) c.set = this.group(+gid).short;
+      } catch (e) {
+        if (!this.groups.length) this.status = "No internet? Couldn't download the list of sets.";
+      }
+    }
+    render();
+  },
+
+  loadCached(gid) {
+    const products = loadJSON(gid + "_products.json", null), prices = loadJSON(gid + "_prices.json", null);
+    if (!products || !prices) return false;
+    const cards = buildCards(products, prices, gid);
+    for (const c of cards) c.set = this.group(gid).short;
+    this.cards[gid] = cards;
+    this.updated[gid] = store.modified(gid + "_prices.json");
+    return true;
+  },
+
+  ensure(gid, maxHours = REFRESH_HOURS, urgent = true) {
+    if (!this.cards[gid]) this.loadCached(gid);
+    const old = now() - (this.updated[gid] || 0) > maxHours * 3600;
+    if ((!this.cards[gid] || old) && !this.failed.has(gid)) this.queue(gid, urgent);
+  },
+
+  queue(gid, urgent = true) {
+    this.todo = this.todo.filter(g => g !== gid);
+    if (urgent) this.todo.unshift(gid); else this.todo.push(gid);
+    this.pump();
+  },
+
+  pump() {
+    while (this.running < 3 && this.todo.length) {
+      const gid = this.todo.shift();
+      if (this.loading.has(gid)) continue;
+      this.loading.add(gid);
+      this.running++;
+      this.download(gid).finally(() => {
+        this.loading.delete(gid);
+        this.running--;
+        if (this.allProgress) {
+          const [d, t] = this.allProgress;
+          this.allProgress = d + 1 < t ? [d + 1, t] : null;
+        }
+        this.pump();
+        scheduleRender();
+      });
+    }
+    scheduleRender();
+  },
+
+  async download(gid) {
+    try {
+      const products = JSON.parse(await httpGet(API + gid + "/products")).results;
+      const prices = JSON.parse(await httpGet(API + gid + "/prices")).results;
+      store.save(gid + "_products.json", JSON.stringify(slimProducts(products)));
+      store.save(gid + "_prices.json", JSON.stringify(slimPrices(prices)));
+      this.loadCached(gid);
+      if (this.status.startsWith("Couldn't") || this.status.startsWith("No internet")) this.status = "";
+    } catch (e) {
+      this.failed.add(gid);
+      this.status = this.cards[gid] ? "Couldn't update prices just now (showing the last ones saved)."
+                                    : `Couldn't download ${this.group(gid).short}. Check the internet, then try Menu → Update.`;
+    }
+  },
+
+  downloadEverything() {
+    if (this.allProgress || !this.groups.length) return;
+    const need = [];
+    for (const g of this.groups) {
+      if (!this.cards[g.gid]) this.loadCached(g.gid);
+      if (!this.cards[g.gid] || now() - (this.updated[g.gid] || 0) > ALL_SETS_DAYS * 86400) need.push(g.gid);
+    }
+    if (need.length) { this.allProgress = [0, need.length]; for (const g of need) this.queue(g, false); }
+  },
+  busy() { return this.loading.size > 0 || this.todo.length > 0; },
+};
+
+// ---------------------------------------------------------------------------
+// Her collection and settings
+// ---------------------------------------------------------------------------
+const coll = {
+  have: new Set((loadJSON("collection.json", {}).have) || []),
+  changes: 0,
+  key: (c, v) => c.pid + "|" + v,
+  has(c, v) { return this.have.has(this.key(c, v)); },
+  toggle(c, v) { const k = this.key(c, v); this.have.has(k) ? this.have.delete(k) : this.have.add(k); this.changes++; this.save(); },
+  save() { store.save("collection.json", JSON.stringify({have: [...this.have].sort(), saved: new Date().toISOString()})); },
+};
+const prefs = Object.assign({tabs: FAVOURITES.slice(), current: FAVOURITES[FAVOURITES.length - 1]}, loadJSON("settings.json", {}));
+const savePrefs = () => store.save("settings.json", JSON.stringify({tabs: prefs.tabs, current: prefs.current}));
+
+// ---------------------------------------------------------------------------
+// What's on screen
+// ---------------------------------------------------------------------------
+const view = {filter: "ALL", sort: "#", query: "", scope: "SET", rarities: new Set(), versions: new Set(), minPrice: 0,
+  limit: PAGE, era: null, setFind: ""};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[ch]));
+const money = v => v == null ? "no price" : (v >= 1000 ? "$" + Math.round(v).toLocaleString() : "$" + v.toFixed(2));
+const searchingMany = () => view.query.trim() && view.scope !== "SET";
+const bestPrice = c => Math.max(0, ...c.versions.map(v => v[1] || 0));
+
+function pool() {
+  if (searchingMany()) {
+    const gids = view.scope === "TABS" ? prefs.tabs : (lib.groups.length ? lib.groups.map(g => g.gid) : Object.keys(lib.cards));
+    return gids.flatMap(g => lib.cards[g] || []);
+  }
+  return lib.cards[prefs.current] || [];
+}
+
+function matches(c) {
+  const q = view.query.trim().toLowerCase();
+  if (q) {
+    const name = c.name.toLowerCase(), words = name.match(/[a-z0-9']+/g) || [];
+    const num = c.number.split("/")[0].replace(/^0+/, "");
+    for (const w of q.split(/\s+/)) {
+      if (/^\d+$/.test(w)) { if (w.replace(/^0+/, "") !== num && !words.includes(w)) return false; }
+      else if (!name.includes(w)) return false;
+    }
+  }
+  if (view.rarities.size && !view.rarities.has(c.rarity)) return false;
+  const vs = c.versions.filter(([v]) => !view.versions.size || view.versions.has(v));
+  if (!vs.length) return false;
+  if (view.minPrice && Math.max(...vs.map(v => v[1] || 0)) < view.minPrice) return false;
+  if (view.filter !== "ALL") {
+    const got = vs.map(([v]) => coll.has(c, v));
+    if (view.filter === "NEED" && got.every(Boolean)) return false;
+    if (view.filter === "HAVE" && !got.some(Boolean)) return false;
+  }
+  return true;
+}
+
+function shown() {
+  const cards = pool().filter(matches);
+  if (view.sort === "$") cards.sort((a, b) => bestPrice(b) - bestPrice(a));
+  else if (view.sort === "A-Z") cards.sort((a, b) => a.name.localeCompare(b.name) || a.num - b.num);
+  return cards;
+}
+
+function stats(gid) {
+  const cards = lib.cards[gid] || [];
+  let gc = 0, tv = 0, gv = 0, value = 0;
+  for (const c of cards) {
+    let any = false;
+    for (const [v, p] of c.versions) { tv++; if (coll.has(c, v)) { gv++; any = true; value += p || 0; } }
+    if (any) gc++;
+  }
+  return {gc, tc: cards.length, gv, tv, value};
+}
+
+// ---------------------------------------------------------------------------
+// Drawing
+// ---------------------------------------------------------------------------
+let renderQueued = false;
+function scheduleRender() { if (!renderQueued) { renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); } }
+
+function render() {
+  renderTabs();
+  renderBar();
+  renderGrid();
+  if ($("sets").classList.contains("open")) renderSets();
+  if ($("filters").classList.contains("open")) renderFilters();
+  const t = $("toast");
+  t.textContent = lib.status;
+  t.style.display = lib.status ? "block" : "none";
+}
+
+function renderTabs() {
+  const tabs = prefs.tabs.slice(0, MAX_TABS);
+  let html = tabs.map(g => `<button data-tab="${g}" class="${g === prefs.current ? "cur" : ""}">${esc(lib.group(g).short)}</button>`).join("");
+  const elsewhere = !tabs.includes(prefs.current);
+  html += `<button class="all ${elsewhere ? "cur" : ""}" id="allSets">${elsewhere ? esc(lib.group(prefs.current).short) + " ▾" : "ALL SETS"}</button>`;
+  $("tabs").innerHTML = html;
+}
+
+function renderBar() {
+  for (const b of $("status").children) b.classList.toggle("on", b.dataset.f === view.filter);
+  $("sort").textContent = "BY " + view.sort;
+  const n = view.rarities.size + view.versions.size + (view.minPrice ? 1 : 0);
+  $("filtersBtn").textContent = n ? `FILTERS (${n})` : "FILTERS";
+  $("filtersBtn").classList.toggle("on", n > 0);
+  $("scope").value = view.scope;
+}
+
+function versionButtons(c, compact) {
+  const n = c.versions.length;
+  return c.versions.map(([v]) => {
+    const got = coll.has(c, v);
+    let label = VERSION_NAME[v] || v.slice(0, 7).toUpperCase();
+    if (n >= 3 || (compact && label.length > 7)) label = VERSION_SHORT[label] || label.slice(0, 4);
+    return `<button class="${got ? "got" : ""}" style="--c:${VERSION_COLOUR[v] || "#7882a0"}" data-pid="${c.pid}" data-v="${esc(v)}">${got && n < 3 ? "✓ " : ""}${esc(label)}</button>`;
+  }).join("");
+}
+
+let lastCards = [];
+function renderGrid() {
+  const cards = shown();
+  lastCards = cards;
+  // summary line
+  let sum;
+  if (searchingMany()) {
+    sum = `<b>${cards.length} found in ${view.scope === "TABS" ? "your tab sets" : "every set"}</b>`;
+    if (view.scope === "ALL" && lib.allProgress) sum += `<span class="blue">still downloading sets ${lib.allProgress[0]} / ${lib.allProgress[1]}, more results will appear</span>`;
+  } else {
+    const s = stats(prefs.current);
+    sum = `<b>${s.gc} / ${s.tc} cards · ${s.gv} / ${s.tv} versions</b><span class="gold">collected value ${money(s.value)}</span>`;
+    if (cards.length !== s.tc) sum += `<span class="blue">showing ${cards.length}</span>`;
+    const u = lib.updated[prefs.current];
+    if (u) sum += `<span class="dim">prices updated ${new Date(u * 1000).toLocaleDateString(undefined, {month: "short", day: "numeric"})}</span>`;
+  }
+  $("summary").innerHTML = sum;
+  if (!cards.length) {
+    const g = prefs.current;
+    let msg;
+    if (searchingMany()) msg = "No cards match.";
+    else if (lib.loading.has(g) || (lib.todo.includes(g) && !lib.cards[g])) msg = "Downloading " + esc(lib.group(g).short) + "…";
+    else if (lib.cards[g] && !lib.cards[g].length) msg = "TCGplayer doesn't list any single cards in this set.";
+    else if (lib.cards[g]) msg = "No cards match.";
+    else msg = "Not downloaded yet. Connect to the internet, then Menu → Update.";
+    $("grid").innerHTML = `<div class="empty" style="grid-column:1/-1">${msg}</div>`;
+    $("more").style.display = "none";
+    return;
+  }
+  const many = searchingMany();
+  $("grid").innerHTML = cards.slice(0, view.limit).map((c, i) => {
+    const got = c.versions.map(([v]) => coll.has(c, v));
+    const some = got.some(Boolean), all = got.every(Boolean);
+    const price = bestPrice(c);
+    let tag = "#" + c.number.split("/")[0];
+    if (many) { const g = lib.group(c.gid); tag += " " + (g.abbr || g.short); }
+    return `<div class="card ${some ? "some" : ""} ${all ? "complete" : ""}">
+      <div class="pic" data-i="${i}"><span class="num">#${esc(c.number.split("/")[0])}</span>
+        <img loading="lazy" src="${IMG(c.pid, 200)}" alt="" onerror="this.style.display='none'">
+        ${all ? '<span class="tick">✓</span>' : ""}</div>
+      <div class="name">${esc(c.name)}</div>
+      <div class="meta"><span class="tag">${esc(tag)}</span><span class="price">${price ? money(price) : "no price"}</span></div>
+      <div class="vers">${versionButtons(c, true)}</div></div>`;
+  }).join("");
+  $("more").style.display = cards.length > view.limit ? "block" : "none";
+  $("more").textContent = `Show more (${cards.length - view.limit} left)`;
+}
+
+// ---- one card, big ----
+let detailCard = null;
+function openDetail(c) { detailCard = c; renderDetail(); $("detail").classList.add("open"); }
+function renderDetail() {
+  const c = detailCard;
+  if (!c) return;
+  const g = lib.group(c.gid);
+  $("detail").querySelector(".box").innerHTML = `
+    <div class="big"><img src="${IMG(c.pid, 400)}" onerror="this.src='${IMG(c.pid, 200)}'" alt=""></div>
+    <div class="info">
+      <div style="display:flex;gap:10px;align-items:flex-start"><h3 style="flex:1">${esc(c.name)}</h3>
+        <button class="x" data-close="detail">✕</button></div>
+      <div style="color:var(--dim)">${esc(c.number)} · ${esc(c.rarity)}</div>
+      <div style="color:var(--dim);font-size:14px">${esc(g.name)}</div>
+      <div class="label">VERSIONS · tap to mark collected</div>
+      ${c.versions.map(([v, p]) => {
+        const got = coll.has(c, v);
+        return `<div class="vrow" style="--c:${VERSION_COLOUR[v] || "#7882a0"}"><div><div class="vname">${esc(v === "Reverse Holofoil" ? "Reverse Holo" : v)}</div>
+          <div class="vprice">${money(p)}${p ? " market price" : ""}</div></div>
+          <button class="${got ? "got" : ""}" data-pid="${c.pid}" data-v="${esc(v)}">${got ? "✓ HAVE IT" : "NEED IT"}</button></div>`;
+      }).join("")}
+    </div>`;
+}
+
+// ---- the set browser ----
+const progressCache = {};
+function progress(gid) {
+  const cards = lib.cards[gid];
+  if (!cards) return null;
+  const key = gid + ":" + coll.changes + ":" + cards.length;
+  if (!(key in progressCache)) progressCache[key] = [cards.filter(c => c.versions.some(([v]) => coll.has(c, v))).length, cards.length];
+  return progressCache[key];
+}
+function eras() {
+  const present = new Set(lib.groups.map(g => g.era));
+  return ERAS.map(e => e[0]).concat([OTHER_ERA]).filter(e => present.has(e));
+}
+function openSets() {
+  if (!view.era) view.era = lib.group(prefs.current).era;
+  renderSets();
+  $("sets").classList.add("open");
+}
+function renderSets() {
+  $("setsTitle").textContent = `Every English set (${lib.groups.length})`;
+  const find = view.setFind.trim().toLowerCase();
+  $("eras").innerHTML = eras().map(e => `<button data-era="${esc(e)}" class="${e === view.era && !find ? "cur" : ""}">${esc(e)}</button>`).join("");
+  if (!lib.groups.length) { $("setlist").innerHTML = `<div class="empty">${esc(lib.status || "Downloading the list of sets…")}</div>`; return; }
+  const sets = find ? lib.groups.filter(g => find.split(/\s+/).every(w => g.name.toLowerCase().includes(w) || g.abbr.toLowerCase() === w))
+                    : lib.groups.filter(g => g.era === view.era);
+  $("setlist").innerHTML = sets.map(g => {
+    const p = progress(g.gid);
+    const star = prefs.tabs.includes(g.gid);
+    const sub = [g.abbr, g.era !== OTHER_ERA ? g.date.slice(0, 4) : ""].filter(Boolean).join(" · ");
+    const cls = p ? (p[1] && p[0] === p[1] ? "all" : (p[0] ? "some" : "")) : "";
+    return `<div class="setrow ${g.gid === prefs.current ? "cur" : ""}" data-set="${g.gid}">
+      <div class="grow"><div class="sn">${esc(g.name)}</div><div class="ss">${esc(sub)}</div></div>
+      ${p ? `<span class="prog ${cls}">${p[0]} / ${p[1]}</span>` : ""}
+      <button class="star ${star ? "on" : ""}" data-star="${g.gid}">${star ? "★" : "☆"}</button></div>`;
+  }).join("") || `<div class="empty">No sets match.</div>`;
+}
+function openSet(gid) {
+  prefs.current = gid;
+  savePrefs();
+  lib.failed.delete(gid);
+  lib.ensure(gid);
+  view.limit = PAGE;
+  $("sets").classList.remove("open");
+  window.scrollTo(0, 0);
+  render();
+}
+function toggleTab(gid) {
+  const i = prefs.tabs.indexOf(gid);
+  if (i >= 0) prefs.tabs.splice(i, 1);
+  else { prefs.tabs.push(gid); if (prefs.tabs.length > MAX_TABS) prefs.tabs.shift(); lib.ensure(gid, REFRESH_HOURS, false); }
+  savePrefs();
+  render();
+}
+
+// ---- filters ----
+function renderFilters() {
+  const p = pool();
+  const rar = [...new Set(p.map(c => c.rarity).filter(Boolean))]
+    .sort((a, b) => ((RARITY_ORDER.indexOf(a) + 1 || 99) - (RARITY_ORDER.indexOf(b) + 1 || 99)) || a.localeCompare(b));
+  $("frar").innerHTML = rar.map(r => `<button data-rar="${esc(r)}" class="${view.rarities.has(r) ? "on" : ""}">${esc(r)}</button>`).join("");
+  let vers = VERSION_ORDER.filter(v => p.some(c => c.versions.some(([x]) => x === v)));
+  if (!vers.length) vers = VERSION_ORDER.slice(0, 3);
+  $("fver").innerHTML = vers.map(v => `<button data-ver="${esc(v)}" style="--c:${VERSION_COLOUR[v]}" class="${view.versions.has(v) ? "on" : ""}">${v === "Reverse Holofoil" ? "REVERSE HOLO" : (VERSION_NAME[v] || v)}</button>`).join("");
+  $("fprice").innerHTML = [[0, "ANY"], [1, "$1"], [5, "$5"], [20, "$20"], [50, "$50"], [100, "$100"]]
+    .map(([v, l]) => `<button data-price="${v}" class="${view.minPrice === v ? "on" : ""}">${l}</button>`).join("");
+  const n = shown().length;
+  $("fcount").textContent = `${n} card${n === 1 ? "" : "s"} match`;
+}
+
+// ---------------------------------------------------------------------------
+// Taps
+// ---------------------------------------------------------------------------
+function findCard(pid) {
+  pid = +pid;
+  if (detailCard && detailCard.pid === pid) return detailCard;
+  return lastCards.find(c => c.pid === pid) || Object.values(lib.cards).flat().find(c => c.pid === pid);
+}
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, .pic, .setrow, [data-close]");
+  if (!t) {
+    if (e.target.classList.contains("modal")) closeModal(e.target.id);   // tap outside a pop-up
+    return;
+  }
+  const d = t.dataset;
+  if (d.close) return closeModal(d.close);
+  if (d.tab) return openSet(+d.tab);
+  if (t.id === "allSets") return openSets();
+  if (d.f) { view.filter = d.f; view.limit = PAGE; return render(); }
+  if (t.id === "sort") { view.sort = {"#": "$", "$": "A-Z", "A-Z": "#"}[view.sort]; view.limit = PAGE; return render(); }
+  if (t.id === "filtersBtn") { renderFilters(); return $("filters").classList.add("open"); }
+  if (t.id === "menuBtn") {
+    $("mInfo").textContent = `${coll.have.size} versions collected · ${Object.keys(lib.cards).length} sets on the tablet`;
+    return $("menu").classList.add("open");
+  }
+  if (t.id === "more") { view.limit += PAGE; return render(); }
+  if (d.pid && d.v) {                                   // a version button
+    const c = findCard(d.pid);
+    if (c) { coll.toggle(c, d.v); renderGrid(); if (detailCard) renderDetail(); }
+    return;
+  }
+  if (t.classList.contains("pic")) return openDetail(lastCards[+d.i]);
+  if (d.era) { view.era = d.era; view.setFind = ""; $("setfind").value = ""; $("setlist").scrollTop = 0; return renderSets(); }
+  if (d.star) return toggleTab(+d.star);
+  if (d.set) return openSet(+d.set);
+  if (d.rar) { view.rarities.has(d.rar) ? view.rarities.delete(d.rar) : view.rarities.add(d.rar); view.limit = PAGE; return render(); }
+  if (d.ver) { view.versions.has(d.ver) ? view.versions.delete(d.ver) : view.versions.add(d.ver); view.limit = PAGE; return render(); }
+  if (d.price !== undefined) { view.minPrice = +d.price; view.limit = PAGE; return render(); }
+  if (t.id === "fclear") { view.rarities.clear(); view.versions.clear(); view.minPrice = 0; return render(); }
+  if (t.id === "mUpdate") {
+    lib.failed.clear(); lib.status = "";
+    lib.loadGroups(true);
+    for (const g of [prefs.current, ...prefs.tabs]) lib.queue(g, g === prefs.current);
+    closeModal("menu");
+    return toast("Updating prices…");
+  }
+  if (t.id === "mExport") {
+    const text = JSON.stringify({have: [...coll.have].sort(), saved: new Date().toISOString()});
+    if (native) native.share("Kassandra's Pokédex collection", text);
+    else navigator.clipboard && navigator.clipboard.writeText(text);
+    return closeModal("menu");
+  }
+  if (t.id === "mImport") { closeModal("menu"); $("importText").value = ""; return $("import").classList.add("open"); }
+  if (t.id === "importAdd" || t.id === "importReplace") {
+    try {
+      const data = JSON.parse($("importText").value);
+      const list = Array.isArray(data) ? data : data.have;
+      if (!Array.isArray(list)) throw new Error("no list");
+      if (t.id === "importReplace") coll.have = new Set();
+      for (const k of list) if (/^\d+\|/.test(k)) coll.have.add(k);
+      coll.changes++; coll.save();
+      closeModal("import");
+      toast(`Imported. ${coll.have.size} versions collected now.`);
+      render();
+    } catch (err) { toast("That doesn't look like an exported collection."); }
+  }
+});
+
+function closeModal(id) {
+  $(id).classList.remove("open");
+  if (id === "detail") detailCard = null;
+  render();
+}
+window.goBack = () => {                                    // Android back button
+  for (const id of ["detail", "import", "filters", "menu", "sets"]) if ($(id).classList.contains("open")) { closeModal(id); return true; }
+  return false;
+};
+
+let searchTimer;
+$("search").addEventListener("input", e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { view.query = e.target.value; view.limit = PAGE; render(); }, 150);
+});
+$("search").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
+$("scope").addEventListener("change", e => {
+  view.scope = e.target.value;
+  if (view.scope === "ALL") lib.downloadEverything();
+  if (view.scope === "TABS") for (const g of prefs.tabs) lib.ensure(g, REFRESH_HOURS, false);
+  view.limit = PAGE;
+  render();
+});
+$("setfind").addEventListener("input", e => { view.setFind = e.target.value; renderSets(); });
+
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = lib.status ? "block" : "none"; t.textContent = lib.status; }, 2500);
+}
+
+document.addEventListener("visibilitychange", () => { if (document.hidden) { coll.save(); savePrefs(); } });
+
+// ---------------------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------------------
+for (const g of [prefs.current, ...prefs.tabs]) lib.ensure(g, REFRESH_HOURS, g === prefs.current);
+render();
+lib.loadGroups();
+</script>
+</body>
+</html>

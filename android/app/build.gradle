@@ -1,0 +1,40 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.kassandra.pokedex'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.kassandra.pokedex'
+        minSdk 24
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('BUILD_NUMBER') ?: '1')
+        versionName "1." + (System.getenv('BUILD_NUMBER') ?: '0')
+    }
+
+    // The same key signs every build, so new versions install over old ones
+    // (and keep her collection).
+    signingConfigs {
+        kassandra {
+            storeFile file('kassandra.keystore')
+            storePassword 'pokedex-tablet'
+            keyAlias 'kassandra'
+            keyPassword 'pokedex-tablet'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.kassandra
+        }
+        release {
+            signingConfig signingConfigs.kassandra
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
