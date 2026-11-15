@@ -1,0 +1,75 @@
+# Publishes the iPhone app (the same page the tablet uses) and a daily copy of the card prices on GitHub Pages:
+#   https://octopushaberdashery.github.io/kassandras-pokedex/
+# Runs whenever the app changes, and once a day for fresh prices.
+# One-time setup: Settings → Pages → Source: "GitHub Actions".
+name: Publish website
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "37 23 * * *"     # daily, after tcgcsv's update
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: website
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check when tcgcsv last updated
+        id: stamp
+        run: |
+          s=$(curl -fsS -A "KassandrasPokedex/1.0 (+https://github.com/${{ github.repository }})" https://tcgcsv.com/last-updated.txt | tr -cd 'A-Za-z0-9:.+-' || true)
+          echo "stamp=${s:-unknown-$(date -u +%F)}" >> "$GITHUB_OUTPUT"
+
+      - name: Bring back the last copy of the prices
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: tcgcsv-${{ steps.stamp.outputs.stamp }}
+          restore-keys: tcgcsv-
+
+      - name: Download today's prices (skipped if already current)
+        id: mirror
+        run: |
+          # if tcgcsv is down, still publish the app with the last copy of the prices
+          python3 scripts/mirror.py data | tee mirror.log || echo "complete=false" >> mirror.log
+          grep -o 'complete=[a-z]*' mirror.log | tail -1 >> "$GITHUB_OUTPUT"
+
+      - name: Keep this copy for next time
+        if: steps.restore.outputs.cache-hit != 'true' && steps.mirror.outputs.complete == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: tcgcsv-${{ steps.stamp.outputs.stamp }}
+
+      - name: Put the website together
+        run: |
+          mkdir -p _site
+          cp android/app/src/main/assets/index.html _site/index.html
+          cp -r web/. _site/
+          cp -r data _site/data
+          touch _site/.nojekyll
+          du -sh _site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Publish
+        id: deploy
+        uses: actions/deploy-pages@v4

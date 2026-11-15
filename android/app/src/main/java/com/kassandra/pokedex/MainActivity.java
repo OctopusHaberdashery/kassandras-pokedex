@@ -2,9 +2,13 @@ package com.kassandra.pokedex;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -21,12 +25,23 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Kassandra's Pokédex: the app itself is a web page (assets/index.html).
- * This wrapper gives it three things a web page can't do on its own:
- * download TCGplayer's data, save files on the tablet, and share text.
+ * Kassandra's Pokédex: the app itself is a web page. The tablet opens the same page as the iPhone, from the
+ * project's website, so updates reach both without reinstalling. Without internet the website's saved copy is
+ * used (or, the very first time, the copy built into the app: assets/index.html).
+ * This wrapper gives the page a few things a web page can't do on its own:
+ * keep her collection in the app's own files, share text, and open links in Chrome.
  */
 public class MainActivity extends Activity {
+    private static final String SITE = "https://octopushaberdashery.github.io/kassandras-pokedex/";
+    private static final String BUILT_IN = "file:///android_asset/index.html";
     private WebView web;
+    private boolean usingBuiltIn = false;
+
+    private void useBuiltIn() {
+        if (usingBuiltIn) return;
+        usingBuiltIn = true;
+        web.loadUrl(BUILT_IN);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,11 +53,29 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setLoadsImagesAutomatically(true);
         s.setTextZoom(100);
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()) useBuiltIn();       // no internet and nothing saved yet
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+                if (request.isForMainFrame() && response.getStatusCode() >= 400) useBuiltIn();   // website not set up yet
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String url = request.getUrl().toString();
+                if (url.startsWith(SITE) || url.startsWith("file:")) return false;
+                openInBrowser(url);                               // e.g. GitHub, to make a sync key
+                return true;
+            }
+        });
         web.setWebChromeClient(new WebChromeClient());
         web.addJavascriptInterface(new Bridge(), "Android");
         setContentView(web);
-        web.loadUrl("file:///android_asset/index.html");
+        web.loadUrl(SITE);
     }
 
     @Override
@@ -53,6 +86,13 @@ public class MainActivity extends Activity {
                 MainActivity.super.onBackPressed();
             }
         });
+    }
+
+    private void openInBrowser(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Exception ignored) {
+        }
     }
 
     private File file(String name) {
@@ -110,6 +150,11 @@ public class MainActivity extends Activity {
         public double modified(String name) {
             File f = file(name);
             return f.exists() ? f.lastModified() / 1000.0 : 0;
+        }
+
+        @JavascriptInterface
+        public void open(String url) {
+            if (url != null && url.startsWith("https://")) runOnUiThread(() -> openInBrowser(url));
         }
 
         @JavascriptInterface

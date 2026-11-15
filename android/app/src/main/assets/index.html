@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Kassandra's Pokédex</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0c0d16">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pokédex">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
 <style>
   :root {
     --bg: #141622; --panel: #222536; --panel2: #2e3248; --text: #f0f2fa; --dim: #969cb4;
@@ -18,7 +26,8 @@
     padding: 0 14px; min-height: 44px; cursor: pointer; font-weight: 600; }
   button:active { filter: brightness(1.25); }
   button.on { background: var(--blue); }
-  header { position: sticky; top: 0; z-index: 5; background: #0c0d16; }
+  header { position: sticky; top: 0; z-index: 5; background: #0c0d16; padding-top: env(safe-area-inset-top); }
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
   #tabs { display: flex; gap: 6px; padding: 8px; overflow-x: auto; scrollbar-width: none; }
   #tabs button { flex: 1 1 0; min-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #tabs button.cur { background: var(--gold); color: #1e1a0a; }
@@ -55,10 +64,11 @@
   .vers button { flex: 1; min-height: 40px; padding: 0 4px; font-size: 13px; background: #1e2030; border: 2px solid var(--c);
     color: var(--c); white-space: nowrap; overflow: hidden; }
   .vers button.got { background: var(--c); color: #0f0f14; }
-  #more { margin: 4px auto 30px; display: block; }
+  #more { margin: 4px auto calc(30px + env(safe-area-inset-bottom)); display: block; }
   .empty { text-align: center; color: var(--dim); font-size: 20px; padding: 60px 20px; }
   /* pop-ups */
-  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 20; display: none; padding: 14px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 20; display: none;
+    padding: calc(14px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left)); }
   .modal.open { display: flex; }
   .box { background: var(--panel); border-radius: 16px; width: 100%; max-height: 100%; display: flex; flex-direction: column;
     overflow: hidden; }
@@ -115,13 +125,50 @@
   .chips.p button.on { background: var(--green); color: #0a1e0f; }
   .label { color: var(--dim); font-size: 13px; margin: 14px 0 6px; letter-spacing: .5px; }
   .foot { display: flex; justify-content: space-between; padding: 12px 14px; gap: 10px; }
-  textarea { width: 100%; height: 180px; background: #0e0f18; color: var(--text); border-radius: 10px; border: 2px solid var(--panel2); padding: 10px; font-family: monospace; }
-  #toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: #3c4260; padding: 10px 18px;
+  textarea { width: 100%; height: 180px; background: #0e0f18; color: var(--text); border-radius: 10px; border: 2px solid var(--panel2); padding: 10px; font-family: monospace; font-size: 16px; }
+  /* sync & import */
+  .steps { margin: 6px 0 10px; padding-left: 22px; line-height: 1.45; } .steps li { margin-bottom: 6px; }
+  .steps b, .note b { color: var(--gold); }
+  .note { color: var(--dim); font-size: 14px; line-height: 1.4; margin: 8px 0; }
+  .keybox { width: 100%; height: 48px; border-radius: 10px; border: 2px solid var(--panel2); background: #0e0f18; color: var(--text);
+    padding: 0 12px; font-size: 16px; font-family: monospace; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; } .row button { flex: 1 1 auto; }
+  .syncstate { background: var(--panel2); border-radius: 12px; padding: 12px 14px; line-height: 1.5; }
+  .syncstate .ok { color: var(--green); font-weight: 700; } .syncstate .bad { color: #ff8a8a; font-weight: 700; }
+  button.go { background: var(--green); color: #0a1e0f; } button.warn { background: var(--red); }
+  #installTip { display: none; background: #2a3a66; padding: 10px 12px; gap: 10px; align-items: center; font-size: 14px; }
+  #installTip.show { display: flex; } #installTip span { flex: 1; } #installTip button { min-height: 36px; }
+  .filepick { display: inline-flex; align-items: center; }
+  #toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #3c4260; padding: 10px 18px;
     border-radius: 10px; z-index: 30; display: none; max-width: 90%; text-align: center; }
+  /* phones */
+  @media (max-width: 640px) {
+    button { padding: 0 10px; min-height: 40px; }
+    #tabs { padding: 6px; } #tabs button { min-width: 108px; font-size: 14px; }
+    #bar { padding: 6px; gap: 5px; }
+    .seg { flex: 1 1 100%; } .seg button { flex: 1; padding: 0 4px; font-size: 14px; }
+    #search { order: 5; flex: 1 1 100%; height: 42px; }
+    #sort, #scope, #filtersBtn, #menuBtn { order: 6; } #scope { flex: 1; height: 40px; } #menuBtn { min-width: 46px; }
+    #summary { padding: 8px 10px 0; font-size: 14px; gap: 2px 12px; } #summary .dim { margin-left: 0; }
+    #grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; }
+    .name { font-size: 14px; } .meta { font-size: 12px; } .vers button { font-size: 11px; min-height: 36px; }
+    .modal { padding: calc(6px + env(safe-area-inset-top)) 6px calc(6px + env(safe-area-inset-bottom)); }
+    .boxhead { flex-wrap: wrap; padding: 10px; } .boxhead h2 { font-size: 18px; }
+    #detail .box { flex-direction: column; overflow-y: auto; padding: 10px; }
+    #detail .big { height: auto; width: 78%; align-self: center; }
+    #detail h3 { font-size: 21px; }
+    .vrow button { min-width: 110px; } .stepper button { min-width: 48px; }
+    #sets .body { flex-direction: column; padding: 0 10px 10px; }
+    #eras { flex: 0 0 auto; flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+    #eras button { white-space: nowrap; flex: 0 0 auto; }
+    #setfind { order: 3; flex: 1 1 100%; max-width: none; }
+    .foot { flex-wrap: wrap; } .foot button { flex: 1 1 auto; }
+  }
 </style>
 </head>
 <body>
 <header>
+  <div id="installTip"><span>To keep this as an app on the iPhone: tap the <b>Share</b> button, then <b>Add to Home Screen</b>.</span><button id="installTipX">OK</button></div>
   <div id="tabs"></div>
   <div id="bar">
     <div class="seg" id="status">
@@ -164,6 +211,7 @@
   <div class="boxhead"><h2>Menu</h2><button class="x" data-close="menu">✕</button></div>
   <div style="display:flex;flex-direction:column;gap:8px;padding:0 14px 14px">
     <button id="mUpdate">Update prices now</button>
+    <button id="mSync">Share her collection between tablet &amp; phone</button>
     <button id="mExport">Export collection (send it somewhere as a backup)</button>
     <button id="mImport">Import a collection</button>
     <div class="label" id="mInfo"></div>
@@ -172,14 +220,52 @@
 
 <div class="modal" id="import"><div class="box" style="max-width:720px;margin:auto">
   <div class="boxhead"><h2>Import a collection</h2><button class="x" data-close="import">✕</button></div>
-  <div style="padding:0 14px">Paste an exported collection (or the Pi's collection.json) here:
+  <div style="padding:0 14px">Paste an exported collection (or the Pi's collection.json) here, or
+    <label class="filepick"><button type="button" id="importPick">choose a saved file</button></label>:
+    <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" style="display:none">
     <textarea id="importText"></textarea></div>
   <div class="foot"><button id="importAdd" class="on">ADD TO HER COLLECTION</button><button id="importReplace">REPLACE HER COLLECTION</button></div>
+</div></div>
+
+<div class="modal" id="sync"><div class="box" style="max-width:640px;margin:auto">
+  <div class="boxhead"><h2>Tablet &amp; phone sharing</h2><button class="x" data-close="sync">✕</button></div>
+  <div class="scroll" id="syncBody" style="padding:0 14px 14px"></div>
 </div></div>
 
 <div id="toast"></div>
 
 <script>
+// Starts the app. In the Android app, saved files live in the app itself; in a browser (the iPhone)
+// they live in IndexedDB, which is read once here so the app can use them straight away.
+(function () {
+  let started = false;
+  const run = () => {
+    if (started) return; started = true;
+    const go = () => {
+      const s = document.createElement("script");
+      s.textContent = document.getElementById("app").textContent;
+      document.body.appendChild(s);
+    };
+    if (document.getElementById("app")) go(); else document.addEventListener("DOMContentLoaded", go);   // wait for the rest of the page
+  };
+  if (window.Android || !window.indexedDB) return run();
+  try {
+    const req = indexedDB.open("kassandras-pokedex", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("files");
+    req.onerror = req.onblocked = run;
+    req.onsuccess = () => {
+      const db = req.result, files = new Map();
+      try {
+        const cur = db.transaction("files").objectStore("files").openCursor();
+        cur.onsuccess = () => { const c = cur.result; if (c) { files.set(c.key, c.value); c.continue(); } else { window.__db = db; window.__files = files; run(); } };
+        cur.onerror = run;
+      } catch (e) { run(); }
+    };
+  } catch (e) { run(); }
+  setTimeout(run, 4000);   // never hang on a stuck database
+})();
+</script>
+<script type="text/plain" id="app">
 "use strict";
 // ---------------------------------------------------------------------------
 // Settings
@@ -189,7 +275,9 @@ const MAX_TABS = 4;
 const REFRESH_HOURS = 12;
 const ALL_SETS_DAYS = 7;
 const PAGE = 240;                                   // cards drawn at a time (more appear with "Show more")
-const API = "https://tcgcsv.com/tcgplayer/3/";
+const SITE = "https://octopushaberdashery.github.io/kassandras-pokedex/";
+// Prices come from the website's own daily copy of tcgcsv.com (made by a GitHub job once a day, as tcgcsv asks).
+const DATA = (location.protocol.startsWith("http") ? "" : SITE) + "data/";
 const IMG = (pid, w) => `https://tcgplayer-cdn.tcgplayer.com/product/${pid}_${w}w.jpg`;
 
 const VERSION_ORDER = ["Normal", "Reverse Holofoil", "Holofoil", "1st Edition", "1st Edition Normal",
@@ -224,21 +312,37 @@ const RARITY_ORDER = ["Common", "Uncommon", "Rare", "Holo Rare", "Double Rare", 
   "Classic Collection"];
 
 // ---------------------------------------------------------------------------
-// The tablet: downloads and files (through the Android app; plain browser for testing)
+// Downloads and saved files: inside the Android app files are kept by the app; in a browser, in IndexedDB
 // ---------------------------------------------------------------------------
 const native = window.Android;
-const pending = {};
-let nextId = 1;
-window.__done = (id, ok, text) => { const p = pending[id]; delete pending[id]; if (p) (ok ? p.resolve : p.reject)(text); };
+const DEVICE = native ? "tablet" : /iPhone|iPad|iPod/.test(navigator.userAgent) ? "iPhone" : "browser";
 function httpGet(url) {
-  if (native) return new Promise((resolve, reject) => { const id = "r" + nextId++; pending[id] = {resolve, reject}; native.get(id, url); });
   return fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.text(); });
 }
+const files = window.__files, db = window.__db;
 const store = {
-  load: n => native ? native.load(n) : (localStorage.getItem("f_" + n) || ""),
-  save: (n, t) => native ? native.save(n, t) : (localStorage.setItem("f_" + n, t), localStorage.setItem("t_" + n, Date.now() / 1000)),
-  modified: n => native ? native.modified(n) : Number(localStorage.getItem("t_" + n) || 0),
+  load(n) {
+    if (native) return native.load(n);
+    if (files) { const f = files.get(n); return f ? f.text : ""; }
+    try { return localStorage.getItem("f_" + n) || ""; } catch (e) { return ""; }
+  },
+  save(n, t) {
+    if (native) return native.save(n, t);
+    const f = {text: t, time: Date.now() / 1000};
+    if (files) {
+      files.set(n, f);
+      try { db.transaction("files", "readwrite").objectStore("files").put(f, n); } catch (e) { }
+      return true;
+    }
+    try { localStorage.setItem("f_" + n, t); localStorage.setItem("t_" + n, f.time); return true; } catch (e) { return false; }
+  },
+  modified(n) {
+    if (native) return native.modified(n);
+    if (files) { const f = files.get(n); return f ? f.time : 0; }
+    try { return Number(localStorage.getItem("t_" + n) || 0); } catch (e) { return 0; }
+  },
 };
+if (!native && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 const loadJSON = (n, d) => { try { const t = store.load(n); return t ? JSON.parse(t) : d; } catch (e) { return d; } };
 const now = () => Date.now() / 1000;
 
@@ -301,7 +405,7 @@ const lib = {
     if (cached) this.setGroups(cached);
     if (force || !cached || now() - store.modified("groups.json") > 86400) {
       try {
-        const raw = JSON.parse(await httpGet(API + "groups")).results;
+        const raw = JSON.parse(await httpGet(DATA + "groups.json")).results;
         store.save("groups.json", JSON.stringify(raw));
         this.setGroups(raw);
         for (const gid of Object.keys(this.cards)) for (const c of this.cards[gid]) c.set = this.group(+gid).short;
@@ -357,8 +461,8 @@ const lib = {
 
   async download(gid) {
     try {
-      const products = JSON.parse(await httpGet(API + gid + "/products")).results;
-      const prices = JSON.parse(await httpGet(API + gid + "/prices")).results;
+      const products = JSON.parse(await httpGet(DATA + gid + "/products.json")).results;
+      const prices = JSON.parse(await httpGet(DATA + gid + "/prices.json")).results;
       store.save(gid + "_products.json", JSON.stringify(slimProducts(products)));
       store.save(gid + "_prices.json", JSON.stringify(slimPrices(prices)));
       this.loadCached(gid);
@@ -385,33 +489,193 @@ const lib = {
 // ---------------------------------------------------------------------------
 // Her collection and settings
 // ---------------------------------------------------------------------------
-// collection.json: {have: ["pid|version", ...], qty: {"pid|version": copies}}  (qty only listed when more than 1)
+// collection.json: {have: ["pid|version", ...], qty: {"pid|version": copies}, stamps: {"pid|version": when it last changed}}
+// (qty only listed when more than 1). The stamps let the tablet and the phone merge their changes: for each card
+// version the most recent change wins, and a removal is remembered so it reaches the other device too.
+const VALID_KEY = /^\d+\|/;
 const saved0 = loadJSON("collection.json", {});
 const coll = {
   have: new Set(saved0.have || []),
   qty: Object.assign({}, saved0.qty || {}),
+  stamps: Object.assign({}, saved0.stamps || {}),
   changes: 0,
   key: (c, v) => c.pid + "|" + v,
   has(c, v) { return this.have.has(this.key(c, v)); },
   count(c, v) { const k = this.key(c, v); return this.have.has(k) ? (this.qty[k] || 1) : 0; },
-  setCount(c, v, n) {
-    const k = this.key(c, v);
+  countKey(k) { return this.have.has(k) ? (this.qty[k] || 1) : 0; },
+  put(k, n, when) {                                     // set copies of one card version without saving
     n = Math.max(0, Math.min(999, n | 0));
     if (n === 0) { this.have.delete(k); delete this.qty[k]; }
     else { this.have.add(k); if (n > 1) this.qty[k] = n; else delete this.qty[k]; }
-    this.changes++; this.save();
+    if (when) this.stamps[k] = when;
   },
+  setCount(c, v, n) { this.put(this.key(c, v), n, Date.now()); this.changes++; this.save(); },
   toggle(c, v) { this.setCount(c, v, this.has(c, v) ? 0 : 1); },
-  data() {
-    const qty = {};
+  core() {                                              // the collection itself, in a fixed order
+    const qty = {}, stamps = {};
     for (const k of Object.keys(this.qty).sort()) if (this.have.has(k) && this.qty[k] > 1) qty[k] = this.qty[k];
-    return {have: [...this.have].sort(), qty, saved: new Date().toISOString()};
+    for (const k of Object.keys(this.stamps).sort()) stamps[k] = this.stamps[k];
+    return {have: [...this.have].sort(), qty, stamps};
   },
+  data() { return Object.assign(this.core(), {saved: new Date().toISOString(), device: DEVICE}); },
   copies() { let n = 0; for (const k of this.have) n += this.qty[k] || 1; return n; },
-  save() { store.save("collection.json", JSON.stringify(this.data())); },
+  save() { store.save("collection.json", JSON.stringify(this.data())); sync.soon(); },
+  /* Merge another device's collection into this one. Returns true if anything here changed. */
+  merge(r) {
+    const rh = new Set(r.have || []), rq = r.qty || {}, rs = r.stamps || {};
+    const keys = new Set([...this.have, ...rh, ...Object.keys(this.stamps), ...Object.keys(rs)]);
+    let changed = false;
+    for (const k of keys) {
+      if (!VALID_KEY.test(k)) continue;
+      const lt = this.stamps[k] || 0, rt = +rs[k] || 0, ln = this.countKey(k);
+      const rn = rh.has(k) ? Math.max(1, Math.min(999, (rq[k] | 0) || 1)) : 0;
+      if (rt > lt) { if (rn !== ln) changed = true; this.put(k, rn, rt); }
+      else if (rt === lt && rn > ln) { this.put(k, rn); changed = true; }   // same age (from before syncing): never lose a card
+    }
+    return changed;
+  },
 };
 const prefs = Object.assign({tabs: FAVOURITES.slice(), current: FAVOURITES[FAVOURITES.length - 1]}, loadJSON("settings.json", {}));
 const savePrefs = () => store.save("settings.json", JSON.stringify({tabs: prefs.tabs, current: prefs.current}));
+
+// ---------------------------------------------------------------------------
+// Sharing her collection between the tablet and the phone
+// ---------------------------------------------------------------------------
+// Both devices keep a copy of the collection in one private ("secret") gist on GitHub, reached with a GitHub key
+// that can only read and write gists. Every sync: download the gist's copy, merge it in, upload if anything is new.
+const SYNC_FILE = "kassandras-pokedex-collection.json";
+const SYNC_DESC = "Kassandra's Pokédex: her collection, kept in sync by the app (please don't rename or delete)";
+const KEY_PAGE = "https://github.com/settings/tokens/new?scopes=gist&description=" + encodeURIComponent("Kassandra's Pokédex sync");
+const sync = {
+  cfg: Object.assign({key: "", gist: "", last: 0, error: "", other: ""}, loadJSON("sync.json", {})),
+  busy: false, again: false, timer: null, on: false,
+  get connected() { return !!this.cfg.key; },
+  saveCfg() { store.save("sync.json", JSON.stringify(this.cfg)); },
+  soon(ms = 3000) {
+    if (!this.on || !this.connected) return;
+    clearTimeout(this.timer); this.timer = setTimeout(() => this.run(), ms);
+  },
+  async api(method, path, body) {
+    let r;
+    try {
+      r = await fetch(path.startsWith("http") ? path : "https://api.github.com" + path, {method, cache: "no-store",
+        headers: Object.assign({Authorization: "Bearer " + this.cfg.key, Accept: "application/vnd.github+json"},
+          body ? {"Content-Type": "application/json"} : {}),
+        body: body ? JSON.stringify(body) : undefined});
+    } catch (e) { throw new Error("offline"); }
+    if (r.status === 401) throw new Error("key");
+    if (r.status === 403 || r.status === 404) { const e = new Error(r.status === 404 ? "missing" : "denied"); e.status = r.status; throw e; }
+    if (!r.ok) throw new Error("github " + r.status);
+    return r.status === 204 ? null : r.json();
+  },
+  async findGist() {
+    for (let page = 1; page <= 5; page++) {
+      const list = await this.api("GET", "/gists?per_page=100&page=" + page);
+      const g = list.find(g => g.files && g.files[SYNC_FILE]);
+      if (g) return g.id;
+      if (list.length < 100) break;
+    }
+    const made = await this.api("POST", "/gists", {description: SYNC_DESC, public: false,
+      files: {[SYNC_FILE]: {content: JSON.stringify(coll.data(), null, 1)}}});
+    return made.id;
+  },
+  async readGist() {
+    const g = await this.api("GET", "/gists/" + this.cfg.gist);
+    const f = g.files && g.files[SYNC_FILE];
+    if (!f) return null;
+    const text = f.truncated ? await (await fetch(f.raw_url, {cache: "no-store"})).text() : f.content;
+    try { return JSON.parse(text); } catch (e) { return null; }
+  },
+  async run() {
+    if (!this.connected) return;
+    if (this.busy) { this.again = true; return; }
+    this.busy = true; clearTimeout(this.timer);
+    let changedHere = false;
+    try {
+      if (!this.cfg.gist) this.cfg.gist = await this.findGist();
+      let remote;
+      try { remote = await this.readGist(); }
+      catch (e) { if (e.message !== "missing") throw e; this.cfg.gist = await this.findGist(); remote = await this.readGist(); }
+      if (remote) {
+        changedHere = coll.merge(remote);
+        if (remote.device && remote.device !== DEVICE) this.cfg.other = remote.device;
+      }
+      const mine = JSON.stringify(coll.core());
+      if (changedHere) store.save("collection.json", JSON.stringify(coll.data()));
+      if (!remote || JSON.stringify({have: [...(remote.have || [])].sort(), qty: remote.qty || {}, stamps: remote.stamps || {}}) !== mine) {
+        await this.api("PATCH", "/gists/" + this.cfg.gist, {files: {[SYNC_FILE]: {content: JSON.stringify(coll.data(), null, 1)}}});
+      }
+      this.cfg.last = Date.now(); this.cfg.error = "";
+    } catch (e) {
+      this.cfg.error = e.message === "key" ? "GitHub didn't accept the key (it may have expired). Make a new one and connect again."
+        : e.message === "offline" ? "No internet just now. It will try again."
+        : e.message === "denied" ? "GitHub refused (the key needs the “gist” box ticked, or GitHub is busy)."
+        : "Couldn't sync just now (" + e.message + "). It will try again.";
+    } finally {
+      this.saveCfg(); this.busy = false;
+      if (changedHere) { coll.changes++; render(); if (detailCard) renderDetail(); toast(`Synced with the ${this.cfg.other || "other device"}: ${coll.have.size} versions collected.`); }
+      if ($("sync").classList.contains("open")) renderSync();
+      if (this.again) { this.again = false; this.soon(500); }
+    }
+  },
+  async connect(key) {
+    key = key.trim().replace(/^Bearer\s+/i, "");
+    if (!/^(ghp_|github_pat_|gho_)?[A-Za-z0-9_]{20,}$/.test(key)) { toast("That doesn't look like a GitHub key. Copy the whole thing (it starts with ghp_)."); return; }
+    this.cfg = {key, gist: "", last: 0, error: "", other: ""};
+    this.on = true; this.saveCfg(); renderSync();
+    await this.run();
+    if (this.cfg.error) toast(this.cfg.error); else toast("Connected. This device now shares her collection.");
+  },
+  disconnect() { this.cfg = {key: "", gist: "", last: 0, error: "", other: ""}; this.saveCfg(); renderSync(); },
+};
+
+function ago(ms) {
+  const s = Math.round((Date.now() - ms) / 1000);
+  return s < 10 ? "just now" : s < 60 ? s + " seconds ago" : s < 3600 ? Math.round(s / 60) + " min ago"
+    : s < 86400 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " days ago";
+}
+function openLink(url) { if (native && native.open) native.open(url); else window.open(url, "_blank", "noopener"); }
+function shareText(title, text, done) {
+  if (native) { native.share(title, text); return; }
+  if (navigator.share) { navigator.share({title, text}).catch(() => {}); return; }
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(done), () => toast("Couldn't copy. Try again."));
+}
+function renderSync() {
+  const b = $("syncBody"), c = sync.cfg;
+  if (!sync.connected) {
+    b.innerHTML = `
+      <p class="note">Set this up once on each device and her collection stays the same on the tablet and the phone.
+        Changes made on either one (even offline) are merged the next time it's online.</p>
+      <div class="label">FIRST DEVICE: MAKE A KEY</div>
+      <ol class="steps">
+        <li>Tap <b>Open GitHub</b> below and sign in.</li>
+        <li>Set <b>Expiration</b> to <b>No expiration</b>. Leave only the <b>gist</b> box ticked.</li>
+        <li>Tap <b>Generate token</b> at the bottom, then copy the key (it starts with <b>ghp_</b>).</li>
+        <li>Paste it below and tap <b>Connect</b>.</li>
+      </ol>
+      <div class="row"><button id="syncOpenGh">Open GitHub</button></div>
+      <div class="label">SECOND DEVICE</div>
+      <p class="note">On the device that's already connected, open this screen and tap <b>Send the key to another device</b>,
+        then paste it here.</p>
+      <input class="keybox" id="syncKey" placeholder="Paste the key here" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="row"><button class="go" id="syncConnect">CONNECT</button></div>
+      <p class="note">The key can only read and write gists (small private notes on GitHub). Her collection is kept in one
+        secret gist called <b>${SYNC_FILE}</b>.</p>`;
+    return;
+  }
+  const state = sync.busy ? "Syncing…" : c.error ? `<span class="bad">${esc(c.error)}</span>`
+    : c.last ? `<span class="ok">Up to date</span> · last synced ${ago(c.last)}` : "Not synced yet";
+  b.innerHTML = `
+    <div class="syncstate">${state}<br>${coll.have.size} versions collected on this ${DEVICE}${c.other ? ` · also shared with the ${esc(c.other)}` : ""}</div>
+    <div class="row"><button class="go" id="syncNow">SYNC NOW</button></div>
+    <div class="label">ADD ANOTHER DEVICE</div>
+    <div class="row"><button id="syncSendKey">Send the key to another device</button></div>
+    <p class="note">Send it to yourself (Messages, email…), then on the other device open <b>Menu → Share her collection
+      between tablet &amp; phone</b> and paste it.</p>
+    <div class="label">STOP SHARING ON THIS DEVICE</div>
+    <div class="row"><button class="warn" id="syncOff">Disconnect this ${DEVICE}</button></div>
+    <p class="note">Disconnecting keeps her collection on this device; it just stops syncing.</p>`;
+}
 
 // ---------------------------------------------------------------------------
 // What's on screen
@@ -721,7 +985,8 @@ document.addEventListener("click", e => {
   if (t.id === "sort") { view.sort = {"#": "$", "$": "A-Z", "A-Z": "#"}[view.sort]; view.limit = PAGE; return render(); }
   if (t.id === "filtersBtn") { renderFilters(); return $("filters").classList.add("open"); }
   if (t.id === "menuBtn") {
-    $("mInfo").textContent = `${coll.have.size} versions collected (${coll.copies()} cards counting copies) · ${Object.keys(lib.cards).length} sets on the tablet`;
+    $("mInfo").textContent = `${coll.have.size} versions collected (${coll.copies()} cards counting copies) · ${Object.keys(lib.cards).length} sets on this ${DEVICE}`
+      + (sync.connected ? (sync.cfg.error ? " · sharing: needs attention" : sync.cfg.last ? ` · shared, synced ${ago(sync.cfg.last)}` : "") : "");
     return $("menu").classList.add("open");
   }
   if (t.id === "more") { view.limit += PAGE; return render(); }
@@ -752,20 +1017,31 @@ document.addEventListener("click", e => {
     return toast("Updating prices…");
   }
   if (t.id === "mExport") {
-    const text = JSON.stringify(coll.data());
-    if (native) native.share("Kassandra's Pokédex collection", text);
-    else navigator.clipboard && navigator.clipboard.writeText(text);
+    shareText("Kassandra's Pokédex collection", JSON.stringify(coll.data()), "Copied her collection. Paste it into Import on the other device.");
     return closeModal("menu");
   }
   if (t.id === "mImport") { closeModal("menu"); $("importText").value = ""; return $("import").classList.add("open"); }
+  if (t.id === "importPick") return $("importFile").click();
+  if (t.id === "mSync") { closeModal("menu"); renderSync(); return $("sync").classList.add("open"); }
+  if (t.id === "syncOpenGh") return openLink(KEY_PAGE);
+  if (t.id === "syncConnect") return sync.connect($("syncKey").value);
+  if (t.id === "syncNow") { sync.on = true; renderSync(); return sync.run(); }
+  if (t.id === "syncSendKey") return shareText("Pokédex sync key", sync.cfg.key, "Copied the key. Paste it on the other device.");
+  if (t.id === "syncOff") { if (confirm("Stop sharing on this device? Her collection stays here.")) sync.disconnect(); return; }
+  if (t.id === "installTipX") { $("installTip").classList.remove("show"); try { localStorage.setItem("tipDone", "1"); } catch (e) { } return; }
   if (t.id === "importAdd" || t.id === "importReplace") {
     try {
       const data = JSON.parse($("importText").value);
       const list = Array.isArray(data) ? data : data.have;
       if (!Array.isArray(list)) throw new Error("no list");
-      if (t.id === "importReplace") { coll.have = new Set(); coll.qty = {}; }
-      for (const k of list) if (/^\d+\|/.test(k)) coll.have.add(k);
-      if (data.qty) for (const [k, n] of Object.entries(data.qty)) if (/^\d+\|/.test(k) && n > 1) { coll.have.add(k); coll.qty[k] = Math.max(coll.qty[k] || 1, Math.min(999, n | 0)); }
+      const when = Date.now(), incoming = {};
+      for (const k of list) if (VALID_KEY.test(k)) incoming[k] = 1;
+      if (data.qty) for (const [k, n] of Object.entries(data.qty)) if (VALID_KEY.test(k) && n > 1) incoming[k] = Math.min(999, n | 0);
+      if (t.id === "importReplace") for (const k of [...coll.have]) if (!(k in incoming)) coll.put(k, 0, when);
+      for (const [k, n] of Object.entries(incoming)) {
+        const target = t.id === "importReplace" ? n : Math.max(coll.countKey(k), n);
+        if (target !== coll.countKey(k)) coll.put(k, target, when);
+      }
       coll.changes++; coll.save();
       closeModal("import");
       toast(`Imported. ${coll.have.size} versions collected now.`);
@@ -780,7 +1056,7 @@ function closeModal(id) {
   render();
 }
 window.goBack = () => {                                    // Android back button
-  for (const id of ["detail", "import", "filters", "menu", "sets"]) if ($(id).classList.contains("open")) { closeModal(id); return true; }
+  for (const id of ["detail", "import", "sync", "filters", "menu", "sets"]) if ($(id).classList.contains("open")) { closeModal(id); return true; }
   return false;
 };
 
@@ -807,7 +1083,14 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.style.display = lib.status ? "block" : "none"; t.textContent = lib.status; }, 2500);
 }
 
-document.addEventListener("visibilitychange", () => { if (document.hidden) { coll.save(); savePrefs(); } });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { store.save("collection.json", JSON.stringify(coll.data())); savePrefs(); if (sync.timer) sync.run(); }
+  else sync.soon(300);
+});
+$("importFile").addEventListener("change", e => {
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => { $("importText").value = t; }); e.target.value = "";
+});
 
 // ---------------------------------------------------------------------------
 // Start
@@ -815,6 +1098,15 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) { col
 for (const g of [prefs.current, ...prefs.tabs]) lib.ensure(g, REFRESH_HOURS, g === prefs.current);
 render();
 lib.loadGroups();
+sync.on = true; sync.soon(800);
+setInterval(() => { if (!document.hidden) sync.soon(0); }, 90 * 1000);
+if ("serviceWorker" in navigator && (location.protocol === "https:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)))
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+{ // iPhone in Safari (not yet on the home screen): show how to add it
+  const standalone = navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+  let done = false; try { done = !!localStorage.getItem("tipDone"); } catch (e) { }
+  if (DEVICE === "iPhone" && !standalone && !done) $("installTip").classList.add("show");
+}
 </script>
 </body>
 </html>
