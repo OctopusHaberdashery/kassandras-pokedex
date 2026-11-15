@@ -1,0 +1,16 @@
+{
+  "name": "Kassandra's Pokédex",
+  "short_name": "Pokédex",
+  "description": "Kassandra's Pokémon card collection, with every English set and today's prices.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#141622",
+  "theme_color": "#0c0d16",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
